@@ -199,6 +199,7 @@ static const struct {
         { "vvc_sao", checkasm_check_vvc_sao },
         { "vvc_mc", checkasm_check_vvc_mc },
         { "vvc_itx", checkasm_check_vvc_itx },
+        { "vvc_lmcs", checkasm_check_vvc_lmcs },
     #endif
 #endif
 #if CONFIG_AVFILTER
