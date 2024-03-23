@@ -29,6 +29,7 @@
 #include "libavutil/csp.h"
 #include "libavutil/imgutils.h"
 #include "libavutil/intreadwrite.h"
+#include "libavutil/mastering_display_metadata.h"
 #include "libavutil/pixfmt.h"
 #include "libavutil/rational.h"
 #include "libavutil/stereo3d.h"
@@ -81,6 +82,14 @@ typedef struct PNGDecContext {
     enum AVColorPrimaries cicp_primaries;
     enum AVColorTransferCharacteristic cicp_trc;
     enum AVColorRange cicp_range;
+    int have_clli;
+    uint32_t clli_max;
+    uint32_t clli_avg;
+    int have_mdvc;
+    uint16_t mdvc_primaries[3][2];
+    uint16_t mdvc_white_point[2];
+    uint32_t mdvc_max_lum;
+    uint32_t mdvc_min_lum;
 
     enum PNGHeaderState hdr_state;
     enum PNGImageState pic_state;
@@ -651,6 +660,7 @@ static int decode_phys_chunk(AVCodecContext *avctx, PNGDecContext *s,
 static int populate_avctx_color_fields(AVCodecContext *avctx, AVFrame *frame)
 {
     PNGDecContext *s = avctx->priv_data;
+    int ret;
 
     if (s->have_cicp) {
         if (s->cicp_primaries >= AVCOL_PRI_NB)
@@ -669,11 +679,15 @@ static int populate_avctx_color_fields(AVCodecContext *avctx, AVFrame *frame)
             avctx->color_range = frame->color_range = AVCOL_RANGE_UNSPECIFIED;
         }
     } else if (s->iccp_data) {
-        AVFrameSideData *sd = av_frame_new_side_data(frame, AV_FRAME_DATA_ICC_PROFILE, s->iccp_data_len);
-        if (!sd)
-            return AVERROR(ENOMEM);
-        memcpy(sd->data, s->iccp_data, s->iccp_data_len);
-        av_dict_set(&sd->metadata, "name", s->iccp_name, 0);
+        AVFrameSideData *sd;
+        ret = ff_frame_new_side_data(avctx, frame, AV_FRAME_DATA_ICC_PROFILE,
+                                     s->iccp_data_len, &sd);
+        if (ret < 0)
+            return ret;
+        if (sd) {
+            memcpy(sd->data, s->iccp_data, s->iccp_data_len);
+            av_dict_set(&sd->metadata, "name", s->iccp_name, 0);
+        }
     } else if (s->have_srgb) {
         avctx->color_primaries = frame->color_primaries = AVCOL_PRI_BT709;
         avctx->color_trc = frame->color_trc = AVCOL_TRC_IEC61966_2_1;
@@ -730,6 +744,44 @@ static int populate_avctx_color_fields(AVCodecContext *avctx, AVFrame *frame)
      */
     if (!s->has_trns && s->significant_bits > 0)
         avctx->bits_per_raw_sample = s->significant_bits;
+
+    if (s->have_clli) {
+        AVContentLightMetadata *clli;
+
+        ret = ff_decode_content_light_new(avctx, frame, &clli);
+        if (ret < 0)
+            return ret;
+
+        if (clli) {
+            /*
+             * 0.0001 divisor value
+             * see: https://www.w3.org/TR/png-3/#cLLi-chunk
+             */
+            clli->MaxCLL = s->clli_max / 10000;
+            clli->MaxFALL = s->clli_avg / 10000;
+        }
+    }
+
+    if (s->have_mdvc) {
+        AVMasteringDisplayMetadata *mdvc;
+
+        ret = ff_decode_mastering_display_new(avctx, frame, &mdvc);
+        if (ret < 0)
+            return ret;
+
+        if (mdvc) {
+            mdvc->has_primaries = 1;
+            for (int i = 0; i < 3; i++) {
+                mdvc->display_primaries[i][0] = av_make_q(s->mdvc_primaries[i][0], 50000);
+                mdvc->display_primaries[i][1] = av_make_q(s->mdvc_primaries[i][1], 50000);
+            }
+            mdvc->white_point[0] = av_make_q(s->mdvc_white_point[0], 50000);
+            mdvc->white_point[1] = av_make_q(s->mdvc_white_point[1], 50000);
+            mdvc->has_luminance = 1;
+            mdvc->max_luminance = av_make_q(s->mdvc_max_lum, 10000);
+            mdvc->min_luminance = av_make_q(s->mdvc_min_lum, 10000);
+        }
+    }
 
     return 0;
 }
@@ -1508,6 +1560,30 @@ static int decode_frame_common(AVCodecContext *avctx, PNGDecContext *s,
 
             break;
         }
+        case MKTAG('c', 'L', 'L', 'i'):
+            if (bytestream2_get_bytes_left(&gb_chunk) != 8) {
+                av_log(avctx, AV_LOG_WARNING, "Invalid cLLi chunk size: %d\n", bytestream2_get_bytes_left(&gb_chunk));
+                break;
+            }
+            s->have_clli = 1;
+            s->clli_max = bytestream2_get_be32u(&gb_chunk);
+            s->clli_avg = bytestream2_get_be32u(&gb_chunk);
+            break;
+        case MKTAG('m', 'D', 'V', 'c'):
+            if (bytestream2_get_bytes_left(&gb_chunk) != 24) {
+                av_log(avctx, AV_LOG_WARNING, "Invalid mDVc chunk size: %d\n", bytestream2_get_bytes_left(&gb_chunk));
+                break;
+            }
+            s->have_mdvc = 1;
+            for (int i = 0; i < 3; i++) {
+                s->mdvc_primaries[i][0] = bytestream2_get_be16u(&gb_chunk);
+                s->mdvc_primaries[i][1] = bytestream2_get_be16u(&gb_chunk);
+            }
+            s->mdvc_white_point[0] = bytestream2_get_be16u(&gb_chunk);
+            s->mdvc_white_point[1] = bytestream2_get_be16u(&gb_chunk);
+            s->mdvc_max_lum = bytestream2_get_be32u(&gb_chunk);
+            s->mdvc_min_lum = bytestream2_get_be32u(&gb_chunk);
+            break;
         case MKTAG('I', 'E', 'N', 'D'):
             if (!(s->pic_state & PNG_ALLIMAGE))
                 av_log(avctx, AV_LOG_ERROR, "IEND without all image\n");

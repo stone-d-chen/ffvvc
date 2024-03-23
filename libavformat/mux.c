@@ -233,22 +233,6 @@ static int init_muxer(AVFormatContext *s, AVDictionary **options)
                 goto fail;
             }
 
-#if FF_API_OLD_CHANNEL_LAYOUT
-FF_DISABLE_DEPRECATION_WARNINGS
-            /* if the caller is using the deprecated channel layout API,
-             * convert it to the new style */
-            if (!par->ch_layout.nb_channels &&
-                par->channels) {
-                if (par->channel_layout) {
-                    av_channel_layout_from_mask(&par->ch_layout, par->channel_layout);
-                } else {
-                    par->ch_layout.order       = AV_CHANNEL_ORDER_UNSPEC;
-                    par->ch_layout.nb_channels = par->channels;
-                }
-            }
-FF_ENABLE_DEPRECATION_WARNINGS
-#endif
-
             if (!par->block_align)
                 par->block_align = par->ch_layout.nb_channels *
                                    av_get_bits_per_sample(par->codec_id) >> 3;
@@ -406,16 +390,11 @@ static int init_pts(AVFormatContext *s)
             break;
         }
 
-        if (!sti->priv_pts)
-            sti->priv_pts = av_mallocz(sizeof(*sti->priv_pts));
-        if (!sti->priv_pts)
-            return AVERROR(ENOMEM);
-
         if (den != AV_NOPTS_VALUE) {
             if (den <= 0)
                 return AVERROR_INVALIDDATA;
 
-            frac_init(sti->priv_pts, 0, 0, den);
+            frac_init(&sti->priv_pts, 0, 0, den);
         }
     }
 
@@ -550,7 +529,7 @@ static int compute_muxer_pkt_fields(AVFormatContext *s, AVStream *st, AVPacket *
         }
         pkt->dts =
 //        pkt->pts= st->cur_dts;
-            pkt->pts = sti->priv_pts->val;
+            pkt->pts = sti->priv_pts.val;
     }
 
     //calculate dts from pts
@@ -587,7 +566,7 @@ static int compute_muxer_pkt_fields(AVFormatContext *s, AVStream *st, AVPacket *
             av_ts2str(pkt->pts), av_ts2str(pkt->dts));
 
     sti->cur_dts      = pkt->dts;
-    sti->priv_pts->val = pkt->dts;
+    sti->priv_pts.val = pkt->dts;
 
     /* update pts */
     switch (st->codecpar->codec_type) {
@@ -599,12 +578,12 @@ static int compute_muxer_pkt_fields(AVFormatContext *s, AVStream *st, AVPacket *
         /* HACK/FIXME, we skip the initial 0 size packets as they are most
          * likely equal to the encoder delay, but it would be better if we
          * had the real timestamps from the encoder */
-        if (frame_size >= 0 && (pkt->size || sti->priv_pts->num != sti->priv_pts->den >> 1 || sti->priv_pts->val)) {
-            frac_add(sti->priv_pts, (int64_t)st->time_base.den * frame_size);
+        if (frame_size >= 0 && (pkt->size || sti->priv_pts.num != sti->priv_pts.den >> 1 || sti->priv_pts.val)) {
+            frac_add(&sti->priv_pts, (int64_t)st->time_base.den * frame_size);
         }
         break;
     case AVMEDIA_TYPE_VIDEO:
-        frac_add(sti->priv_pts, (int64_t)st->time_base.den * st->time_base.num);
+        frac_add(&sti->priv_pts, (int64_t)st->time_base.den * st->time_base.num);
         break;
     }
     return 0;
@@ -1457,13 +1436,6 @@ static int write_uncoded_frame_internal(AVFormatContext *s, int stream_index,
         pkt->size         = sizeof(frame);
         pkt->pts          =
         pkt->dts          = frame->pts;
-#if FF_API_PKT_DURATION
-FF_DISABLE_DEPRECATION_WARNINGS
-        if (frame->pkt_duration)
-            pkt->duration     = frame->pkt_duration;
-        else
-FF_ENABLE_DEPRECATION_WARNINGS
-#endif
         pkt->duration = frame->duration;
         pkt->stream_index = stream_index;
         pkt->flags |= AV_PKT_FLAG_UNCODED_FRAME;

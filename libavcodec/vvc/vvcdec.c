@@ -239,6 +239,31 @@ static void ispmf_tl_init(TabList *l, VVCFrameContext *fc)
     TL_ADD(ispmf, w64 * h64);
 }
 
+static void ibc_tl_init(TabList *l, VVCFrameContext *fc)
+{
+    const VVCSPS *sps    = fc->ps.sps;
+    const VVCPPS *pps    = fc->ps.pps;
+    const int ctu_height = pps ? pps->ctb_height : 0;
+    const int ctu_size   = sps ? sps->ctb_size_y : 0;
+    const int ps         = sps ? sps->pixel_shift : 0;
+    const int chroma_idc = sps ? sps->r->sps_chroma_format_idc : 0;
+    const int has_ibc    = sps ? sps->r->sps_ibc_enabled_flag : 0;
+    const int changed    = fc->tab.sz.chroma_format_idc != chroma_idc ||
+        fc->tab.sz.ctu_height != ctu_height ||
+        fc->tab.sz.ctu_size != ctu_size ||
+        fc->tab.sz.pixel_shift != ps;
+
+    fc->tab.sz.ibc_buffer_width = ctu_size ? 2 * MAX_CTU_SIZE * MAX_CTU_SIZE / ctu_size : 0;
+
+    tl_init(l, has_ibc, changed);
+
+    for (int i = LUMA; i < VVC_MAX_SAMPLE_ARRAYS; i++) {
+        const int hs = sps ? sps->hshift[i] : 0;
+        const int vs = sps ? sps->vshift[i] : 0;
+        TL_ADD(ibc_vir_buf[i], fc->tab.sz.ibc_buffer_width * ctu_size * ctu_height << ps >> hs >> vs);
+    }
+}
+
 typedef void (*tl_init_fn)(TabList *l, VVCFrameContext *fc);
 
 static int frame_context_for_each_tl(VVCFrameContext *fc, int (*unary_fn)(TabList *l))
@@ -251,6 +276,7 @@ static int frame_context_for_each_tl(VVCFrameContext *fc, int (*unary_fn)(TabLis
         pixel_buffer_nz_tl_init,
         msm_tl_init,
         ispmf_tl_init,
+        ibc_tl_init,
     };
 
     for (int i = 0; i < FF_ARRAY_ELEMS(init); i++) {
@@ -567,6 +593,8 @@ static int frame_context_setup(VVCFrameContext *fc, VVCContext *s)
 {
     int ret;
 
+    fc->ref = NULL;
+
     // copy refs from the last frame
     if (s->nb_frames && s->nb_fcs > 1) {
         VVCFrameContext *prev = get_frame_context(s, fc, -1);
@@ -672,8 +700,8 @@ static void export_frame_params(VVCContext *s, const VVCFrameContext *fc)
     c->pix_fmt      = sps->pix_fmt;
     c->coded_width  = pps->width;
     c->coded_height = pps->height;
-    c->width        = pps->width  - pps->r->pps_conf_win_left_offset - pps->r->pps_conf_win_right_offset;
-    c->height       = pps->height - pps->r->pps_conf_win_top_offset - pps->r->pps_conf_win_bottom_offset;
+    c->width        = pps->width  - ((pps->r->pps_conf_win_left_offset + pps->r->pps_conf_win_right_offset) << sps->hshift[CHROMA]);
+    c->height       = pps->height - ((pps->r->pps_conf_win_top_offset + pps->r->pps_conf_win_bottom_offset) << sps->vshift[CHROMA]);
 }
 
 static int frame_setup(VVCFrameContext *fc, VVCContext *s)
@@ -895,13 +923,14 @@ static av_cold void vvc_decode_flush(AVCodecContext *avctx)
 {
     VVCContext *s  = avctx->priv_data;
     int got_output = 0;
-    VVCFrameContext *last;
 
     while (s->nb_delayed)
         wait_delayed_frame(s, NULL, &got_output);
 
-    last = get_frame_context(s, s->fcs, s->nb_frames - 1);
-    ff_vvc_flush_dpb(last);
+    if (s->fcs) {
+        VVCFrameContext *last = get_frame_context(s, s->fcs, s->nb_frames - 1);
+        ff_vvc_flush_dpb(last);
+    }
 
     s->eos = 1;
 }
@@ -984,7 +1013,8 @@ const FFCodec ff_vvc_decoder = {
     .close          = vvc_decode_free,
     FF_CODEC_DECODE_CB(vvc_decode_frame),
     .flush          = vvc_decode_flush,
-    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY | AV_CODEC_CAP_OTHER_THREADS,
+    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY | AV_CODEC_CAP_OTHER_THREADS |
+                      AV_CODEC_CAP_EXPERIMENTAL,
     .caps_internal  = FF_CODEC_CAP_EXPORTS_CROPPING | FF_CODEC_CAP_INIT_CLEANUP |
                       FF_CODEC_CAP_AUTO_THREADS,
     .p.profiles     = NULL_IF_CONFIG_SMALL(ff_vvc_profiles),

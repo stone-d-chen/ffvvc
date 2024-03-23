@@ -1,4 +1,6 @@
 /*
+ * DVD-Video subpicture CLUT (Color Lookup Table) utilities
+ *
  * This file is part of FFmpeg.
  *
  * FFmpeg is free software; you can redistribute it and/or
@@ -16,13 +18,20 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVFILTER_THREAD_H
-#define AVFILTER_THREAD_H
+#ifndef AVFORMAT_DVDCLUT_H
+#define AVFORMAT_DVDCLUT_H
 
-#include "avfilter.h"
+#include "libavcodec/codec_par.h"
 
-int ff_graph_thread_init(AVFilterGraph *graph);
+/* ("palette: ") + ("rrggbb, "*15) + ("rrggbb") + \n + \0 */
+#define FF_DVDCLUT_EXTRADATA_SIZE        (9 + (8 * 15) + 6 + 1 + 1)
+#define FF_DVDCLUT_CLUT_LEN              16
+#define FF_DVDCLUT_CLUT_SIZE             FF_DVDCLUT_CLUT_LEN * sizeof(uint32_t)
 
-void ff_graph_thread_free(AVFilterGraph *graph);
+int ff_dvdclut_palette_extradata_cat(const uint32_t *clut,
+                                     const size_t clut_size,
+                                     AVCodecParameters *par);
 
-#endif /* AVFILTER_THREAD_H */
+int ff_dvdclut_yuv_to_rgb(uint32_t *clut, const size_t clut_size);
+
+#endif /* AVFORMAT_DVDCLUT_H */

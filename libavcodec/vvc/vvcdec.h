@@ -170,6 +170,8 @@ typedef struct VVCFrameContext {
         int         *coeffs;
         struct CTU  *ctus;
 
+        uint8_t *ibc_vir_buf[VVC_MAX_SAMPLE_ARRAYS];    ///< IbcVirBuf[]
+
         //used in arrays_init only
         struct {
             int ctu_count;
@@ -183,6 +185,9 @@ typedef struct VVCFrameContext {
             int height;
             int chroma_format_idc;
             int pixel_shift;
+            int bs_width;
+            int bs_height;
+            int ibc_buffer_width;       ///< IbcBufWidth
         } sz;
     } tab;
 } VVCFrameContext;

@@ -121,7 +121,7 @@ typedef struct VVCItxDSPContext {
 } VVCItxDSPContext;
 
 typedef struct VVCLMCSDSPContext {
-    void (*filter)(uint8_t *dst, ptrdiff_t dst_stride, int width, int height, const uint8_t *lut);
+    void (*filter)(uint8_t *dst, ptrdiff_t dst_stride, int width, int height, const void *lut);
 } VVCLMCSDSPContext;
 
 typedef struct VVCLFDSPContext {

@@ -339,8 +339,6 @@ static int write_option(void *optctx, const OptionDef *po, const char *opt,
 
         *(double *)dst = num;
     } else {
-        int ret;
-
         av_assert0(po->type == OPT_TYPE_FUNC && po->u.func_arg);
 
         ret = po->u.func_arg(optctx, opt, arg);
@@ -530,7 +528,7 @@ static void check_options(const OptionDef *po)
 {
     while (po->name) {
         if (po->flags & OPT_PERFILE)
-            av_assert0(po->flags & (OPT_INPUT | OPT_OUTPUT));
+            av_assert0(po->flags & (OPT_INPUT | OPT_OUTPUT | OPT_DECODER));
 
         if (po->type == OPT_TYPE_FUNC)
             av_assert0(!(po->flags & (OPT_FLAG_OFFSET | OPT_FLAG_SPEC)));
@@ -795,7 +793,7 @@ int split_commandline(OptionParseContext *octx, int argc, char *argv[],
     while (optindex < argc) {
         const char *opt = argv[optindex++], *arg;
         const OptionDef *po;
-        int ret;
+        int ret, group_idx;
 
         av_log(NULL, AV_LOG_DEBUG, "Reading option '%s' ...", opt);
 
@@ -824,14 +822,15 @@ do {                                                                           \
 } while (0)
 
         /* named group separators, e.g. -i */
-        if ((ret = match_group_separator(groups, nb_groups, opt)) >= 0) {
+        group_idx = match_group_separator(groups, nb_groups, opt);
+        if (group_idx >= 0) {
             GET_ARG(arg);
-            ret = finish_group(octx, ret, arg);
+            ret = finish_group(octx, group_idx, arg);
             if (ret < 0)
                 return ret;
 
             av_log(NULL, AV_LOG_DEBUG, " matched as %s with argument '%s'.\n",
-                   groups[ret].name, arg);
+                   groups[group_idx].name, arg);
             continue;
         }
 
@@ -895,11 +894,6 @@ do {                                                                           \
     av_log(NULL, AV_LOG_DEBUG, "Finished splitting the commandline.\n");
 
     return 0;
-}
-
-void print_error(const char *filename, int err)
-{
-    av_log(NULL, AV_LOG_ERROR, "%s: %s\n", filename, av_err2str(err));
 }
 
 int read_yesno(void)
@@ -1121,7 +1115,7 @@ double get_rotation(const int32_t *displaymatrix)
 {
     double theta = 0;
     if (displaymatrix)
-        theta = -round(av_display_rotation_get((int32_t*) displaymatrix));
+        theta = -round(av_display_rotation_get(displaymatrix));
 
     theta -= 360*floor(theta/360 + 0.9/360);
 
