@@ -1275,18 +1275,6 @@ void ff_vvc_lmcs_filter(const VVCLocalContext *lc, const int x, const int y)
     const int height   = FFMIN(fc->ps.pps->height - y, ctb_size);
     uint8_t *data      = fc->frame->data[LUMA] + y * fc->frame->linesize[LUMA] + (x << fc->ps.sps->pixel_shift);
     if (sc->sh.r->sh_lmcs_used_flag) {
-        if(width == 16) {
-            fc->vvcdsp.lmcs.filter[2](data, fc->frame->linesize[LUMA], width, height, fc->ps.lmcs.inv_lut.u8);
-        }
-        else if(width == 4)
-        {
-            fc->vvcdsp.lmcs.filter[0](data, fc->frame->linesize[LUMA], width, height, fc->ps.lmcs.inv_lut.u8);
-        }
-        else if(width == 8)
-        {
-            fc->vvcdsp.lmcs.filter[1](data, fc->frame->linesize[LUMA], width, height, fc->ps.lmcs.inv_lut.u8);
-        } else {
-            fc->vvcdsp.lmcs.filter[3](data, fc->frame->linesize[LUMA], width, height, fc->ps.lmcs.inv_lut.u8);
-        }
+        fc->vvcdsp.lmcs.filter[av_log2(width) - 2];
     }
 }
