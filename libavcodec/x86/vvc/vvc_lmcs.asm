@@ -66,7 +66,7 @@ cglobal lmcs_16bpc, 5, 8, 13, src, src_stride, width, height, lut, src_pt, cnt, 
             movu             m1, [srcq]
             movu             m7, [src2q]
 
-            PACK_GATHER_UNPACK
+            PACK_GATHER_UNPACK_16
 
             ; write out
             movu         [srcq], m4
@@ -104,7 +104,7 @@ cglobal lmcs_16bpc_8pix, 5, 7, 13, src, src_stride, width, height, lut, src_pt, 
             movu                 xm8, [src2q + src_strideq * 2]
             vperm2i128            m7, m7, m8, q0200
 
-            PACK_GATHER_UNPACK
+            PACK_GATHER_UNPACK_16
 
             ; write out
             movu               [srcq], xm4
