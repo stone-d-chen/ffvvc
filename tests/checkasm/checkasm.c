@@ -199,6 +199,12 @@ static const struct {
     #endif
     #if CONFIG_VVC_DECODER
         { "vvc_mc", checkasm_check_vvc_mc },
+<<<<<<< HEAD
+=======
+        { "vvc_itx", checkasm_check_vvc_itx },
+        { "vvc_sad", checkasm_check_vvc_sad },
+
+>>>>>>> 27bebf420c (AVX2 implementation of DMVR SAD for VVC)
     #endif
 #endif
 #if CONFIG_AVFILTER

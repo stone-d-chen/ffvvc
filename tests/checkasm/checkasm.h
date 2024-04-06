@@ -133,6 +133,11 @@ void checkasm_check_vp9dsp(void);
 void checkasm_check_videodsp(void);
 void checkasm_check_vorbisdsp(void);
 void checkasm_check_vvc_mc(void);
+<<<<<<< HEAD
+=======
+void checkasm_check_vvc_itx(void);
+void checkasm_check_vvc_sad(void);
+>>>>>>> 27bebf420c (AVX2 implementation of DMVR SAD for VVC)
 
 struct CheckasmPerf;
 

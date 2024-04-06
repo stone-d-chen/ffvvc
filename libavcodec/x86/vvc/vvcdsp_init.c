@@ -206,6 +206,20 @@ AVG_FUNCS(16, 12, avx2)
 } while (0)
 #endif
 
+int ff_vvc_sad_8_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+int ff_vvc_sad_16_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+int ff_vvc_sad_128_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+int ff_vvc_sad_64_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+int ff_vvc_sad_32_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+
+#define SAD_INIT() do {                                                 \
+    c->inter.sad[1] = ff_vvc_sad_8_16bpc_avx2;                          \
+    c->inter.sad[2] = ff_vvc_sad_16_16bpc_avx2;                         \
+    c->inter.sad[3] = ff_vvc_sad_32_16bpc_avx2;                         \
+    c->inter.sad[4] = ff_vvc_sad_64_16bpc_avx2;                         \
+    c->inter.sad[5] = ff_vvc_sad_128_16bpc_avx2;                        \
+} while (0)
+
 void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
 {
 #if ARCH_X86_64
@@ -215,6 +229,7 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         if (EXTERNAL_SSE4(cpu_flags)) {
             MC_LINK_SSE4(8);
         }
+<<<<<<< HEAD
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(8);
         }
@@ -233,6 +248,50 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(12);
             MC_LINKS_16BPC_AVX2(12);
+=======
+
+        if (EXTERNAL_AVX2(cpu_flags)) {
+            switch (bd) {
+                case 8:
+                ALF_INIT(8);
+                    AVG_INIT(8, avx2);
+                    c->sao.band_filter[0] = ff_vvc_sao_band_filter_8_8_avx2;
+                    c->sao.band_filter[1] = ff_vvc_sao_band_filter_16_8_avx2;
+                    SAD_INIT();
+                    break;
+                case 10:
+                ALF_INIT(10);
+                    AVG_INIT(10, avx2);
+                    c->sao.band_filter[0] = ff_vvc_sao_band_filter_8_10_avx2;
+                    SAD_INIT();
+                    break;
+                case 12:
+                ALF_INIT(12);
+                    AVG_INIT(12, avx2);
+                    SAD_INIT();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (EXTERNAL_AVX2_FAST(cpu_flags)) {
+            switch (bd) {
+                case 8:
+                    SAO_INIT(8, avx2);
+                    SAD_INIT();
+                    break;
+                case 10:
+                    SAO_INIT(10, avx2);
+                    SAD_INIT();
+                    break;
+                case 12:
+                    SAO_INIT(12, avx2);
+                    SAD_INIT();
+                default:
+                    break;
+            }
+>>>>>>> 27bebf420c (AVX2 implementation of DMVR SAD for VVC)
         }
     }
 

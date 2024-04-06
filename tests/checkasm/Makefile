@@ -41,7 +41,11 @@ AVCODECOBJS-$(CONFIG_V210_DECODER)      += v210dec.o
 AVCODECOBJS-$(CONFIG_V210_ENCODER)      += v210enc.o
 AVCODECOBJS-$(CONFIG_VORBIS_DECODER)    += vorbisdsp.o
 AVCODECOBJS-$(CONFIG_VP9_DECODER)       += vp9dsp.o
+<<<<<<< HEAD
 AVCODECOBJS-$(CONFIG_VVC_DECODER)       += vvc_mc.o
+=======
+AVCODECOBJS-$(CONFIG_VVC_DECODER)       += vvc_alf.o vvc_sao.o vvc_mc.o vvc_itx.o vvc_sad.o
+>>>>>>> 27bebf420c (AVX2 implementation of DMVR SAD for VVC)
 
 CHECKASMOBJS-$(CONFIG_AVCODEC)          += $(AVCODECOBJS-yes)
 
