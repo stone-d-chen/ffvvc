@@ -7,12 +7,11 @@ SECTION .text
     vpminuw           %1, %2, %3
     vpmaxuw           %3, %2, %3
     vpsubusw          %3, %3, %1
-
 %endmacro
 
 
 INIT_YMM avx2
-cglobal vvc_sad_8x8_16bpc, 6, 9, 13, src1, src2, dx, dy, block_w, block_h, off1, off2, sad
+cglobal vvc_sad_8x8_16bpc, 6, 8, 13, src1, src2, dx, dy, block_w, block_h, off1, off2
     ; calculate initial offsets...gross
     sub               dxq, 2
     sub               dyq, 2
@@ -34,8 +33,6 @@ cglobal vvc_sad_8x8_16bpc, 6, 9, 13, src1, src2, dx, dy, block_w, block_h, off1,
 
     lea             src1q, [src1q + off1q * 2]
     lea             src2q, [src2q + off2q * 2]
-    xor              eax, eax
-    
 .load_8pixels:
         movu              xm0, [src1q]
         movu              xm1, [src2q]
@@ -46,7 +43,6 @@ cglobal vvc_sad_8x8_16bpc, 6, 9, 13, src1, src2, dx, dy, block_w, block_h, off1,
         vpmovzxwd          m1, xm1
 
         ; MIN_MAX_SAD m2, m0, m1
-        ; vpaddd             m4, m1
 
         movu              xm5, [src1q + 128 * 2 * 2]
         movu              xm6, [src2q + 128 * 2 * 2]
@@ -61,23 +57,20 @@ cglobal vvc_sad_8x8_16bpc, 6, 9, 13, src1, src2, dx, dy, block_w, block_h, off1,
         movu              xm9, [src2q + 128 * 4 * 2]
         vpminuw           xm10, xm8, xm9
         vpmaxuw           xm9, xm8, xm9
-        vpsubusw          xm8, xm8, xm9
+        vpsubusw          xm9, xm9, xm10
 
-        vpmovzxwd          m8, xm8
-        vpaddd             m1, m8
+        vpmovzxwd          m9, xm9
+        vpaddd             m1, m9
 
         movu              xm11, [src1q + 128 * 6 * 2]
         movu              xm12, [src2q + 128 * 6 * 2]
         vpminuw           xm13, xm11, xm12
         vpmaxuw           xm12, xm11, xm12
-        vpsubusw          xm11, xm11, xm12
+        vpsubusw          xm12, xm12, xm13
 
-        vpmovzxwd          m11, xm11
+        vpmovzxwd          m12, xm12
 
-        vpaddd             m1, m11
-
-        ;vpaddd             m8, m4
-        ;movu               m1, m8
+        vpaddd              m1, m12
 
 
         ; so this is the final step
@@ -88,11 +81,12 @@ cglobal vvc_sad_8x8_16bpc, 6, 9, 13, src1, src2, dx, dy, block_w, block_h, off1,
         vpshufd           xm1, xm0, q0001 ; xm1    _      _     (5 1 7 3) (5 1 7 3)
         vpaddd            xm0, xm0, xm1   ;                               (01234567)
 
-        movd             sadd, xm0
-        add               eax, sadd
+        movd              eax, xm0
+        ;movd             sadd, xm0
+        ;add               eax, sadd
 
-        ;add             src1q, 4 * 128 * 2 
-        ;add             src2q, 4 * 128 * 2
+        ;add             src1q, 2 * 128 * 2 
+        ;add             src2q, 2 * 128 * 2
 
         ;sub          block_hd, 6
         ;jg  .load_8pixels
