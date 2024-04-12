@@ -247,6 +247,8 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
                 break;
             case 10:
                 AVG_INIT(10, avx2);
+                c->inter.sad = ff_vvc_sad_8x8_16bpc_avx2;
+
                 break;
             case 12:
                 AVG_INIT(12, avx2);
