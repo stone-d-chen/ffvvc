@@ -207,10 +207,13 @@ AVG_FUNCS(16, 12, avx2)
 } while (0)
 #endif
 
+int ff_vvc_sad_8x8_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+
 void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
 {
 #if ARCH_X86_64
     const int cpu_flags = av_get_cpu_flags();
+    c->inter.mysad = ff_vvc_sad_8x8_16bpc_avx2;
 
     if (bd == 8) {
         if (EXTERNAL_SSE4(cpu_flags)) {
