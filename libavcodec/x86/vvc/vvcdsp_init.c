@@ -208,12 +208,15 @@ AVG_FUNCS(16, 12, avx2)
 #endif
 
 int ff_vvc_sad_8x8_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
+int ff_vvc_sad_16x16_16bpc_avx2(const int16_t *src0, const int16_t *src1, int dx, int dy, int block_w, int block_h);
 
 void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
 {
 #if ARCH_X86_64
     const int cpu_flags = av_get_cpu_flags();
     c->inter.mysad = ff_vvc_sad_8x8_16bpc_avx2;
+    c->inter.mysad16 = ff_vvc_sad_16x16_16bpc_avx2;
+
 
     if (bd == 8) {
         if (EXTERNAL_SSE4(cpu_flags)) {
@@ -229,14 +232,19 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(10);
             MC_LINKS_16BPC_AVX2(10);
+            c->inter.sad[1] = ff_vvc_sad_8x8_16bpc_avx2;
+            c->inter.sad[2] = ff_vvc_sad_16x16_16bpc_avx2;
         }
     } else if (bd == 12) {
         if (EXTERNAL_SSE4(cpu_flags)) {
             MC_LINK_SSE4(12);
+            
         }
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(12);
             MC_LINKS_16BPC_AVX2(12);
+            c->inter.sad[1] = ff_vvc_sad_8x8_16bpc_avx2;
+            c->inter.sad[2] = ff_vvc_sad_16x16_16bpc_avx2;
         }
     }
 
@@ -247,11 +255,15 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
                 break;
             case 10:
                 AVG_INIT(10, avx2);
-                c->inter.sad = ff_vvc_sad_8x8_16bpc_avx2;
+                c->inter.sad[1] = ff_vvc_sad_8x8_16bpc_avx2;
+                c->inter.sad[2] = ff_vvc_sad_16x16_16bpc_avx2;
 
                 break;
             case 12:
                 AVG_INIT(12, avx2);
+                c->inter.sad[1] = ff_vvc_sad_8x8_16bpc_avx2;
+                c->inter.sad[2] = ff_vvc_sad_16x16_16bpc_avx2;
+
                 break;
             default:
                 break;
