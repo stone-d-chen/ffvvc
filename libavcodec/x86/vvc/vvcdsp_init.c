@@ -229,9 +229,9 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         if (EXTERNAL_SSE4(cpu_flags)) {
             MC_LINK_SSE4(8);
         }
-<<<<<<< HEAD
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(8);
+            SAD_INIT();
         }
     } else if (bd == 10) {
         if (EXTERNAL_SSE4(cpu_flags)) {
@@ -240,6 +240,7 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(10);
             MC_LINKS_16BPC_AVX2(10);
+            SAD_INIT();
         }
     } else if (bd == 12) {
         if (EXTERNAL_SSE4(cpu_flags)) {
@@ -248,50 +249,7 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         if (EXTERNAL_AVX2_FAST(cpu_flags)) {
             MC_LINKS_AVX2(12);
             MC_LINKS_16BPC_AVX2(12);
-=======
-
-        if (EXTERNAL_AVX2(cpu_flags)) {
-            switch (bd) {
-                case 8:
-                ALF_INIT(8);
-                    AVG_INIT(8, avx2);
-                    c->sao.band_filter[0] = ff_vvc_sao_band_filter_8_8_avx2;
-                    c->sao.band_filter[1] = ff_vvc_sao_band_filter_16_8_avx2;
-                    SAD_INIT();
-                    break;
-                case 10:
-                ALF_INIT(10);
-                    AVG_INIT(10, avx2);
-                    c->sao.band_filter[0] = ff_vvc_sao_band_filter_8_10_avx2;
-                    SAD_INIT();
-                    break;
-                case 12:
-                ALF_INIT(12);
-                    AVG_INIT(12, avx2);
-                    SAD_INIT();
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        if (EXTERNAL_AVX2_FAST(cpu_flags)) {
-            switch (bd) {
-                case 8:
-                    SAO_INIT(8, avx2);
-                    SAD_INIT();
-                    break;
-                case 10:
-                    SAO_INIT(10, avx2);
-                    SAD_INIT();
-                    break;
-                case 12:
-                    SAO_INIT(12, avx2);
-                    SAD_INIT();
-                default:
-                    break;
-            }
->>>>>>> 27bebf420c (AVX2 implementation of DMVR SAD for VVC)
+            SAD_INIT();
         }
     }
 
@@ -299,12 +257,15 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
         switch (bd) {
             case 8:
                 AVG_INIT(8, avx2);
+                SAD_INIT();
                 break;
             case 10:
                 AVG_INIT(10, avx2);
+                SAD_INIT();
                 break;
             case 12:
                 AVG_INIT(12, avx2);
+                SAD_INIT();
                 break;
             default:
                 break;
