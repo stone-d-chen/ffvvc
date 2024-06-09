@@ -7,6 +7,7 @@ SECTION_RODATA
 cextern pw_1023
 %define pw_pixel_max_10 pw_1023
 pw_pixel_max_12: times 8 dw ((1 << 12)-1)
+pw_2 :           times 8 dw  2
 pw_m2:           times 8 dw -2
 pd_1 :           times 4 dd  1
 
@@ -264,6 +265,15 @@ ALIGN 16
     movq             m6, [tcq]; tc0
     punpcklwd        m6, m6
     pshufd           m6, m6, 0xA0; tc0, tc1
+
+%if   %1 == 8
+    paddw            m6, [pw_2]
+    psraw            m6, 2
+%elif %1 == 10
+%elif %1 == 12
+    psllw            m6, 2
+%endif
+
 %if cpuflag(ssse3)
     psignw           m4, m6, [pw_m1]; -tc0, -tc1
 %else
@@ -324,7 +334,7 @@ cglobal vvc_v_loop_filter_chroma_12, 4, 6, 7, pix, stride, beta, tc, pix0, r3str
 ; void ff_hevc_h_loop_filter_chroma(uint8_t *_pix, ptrdiff_t _stride, int32_t *tc,
 ;                                   uint8_t *_no_p, uint8_t *_no_q);
 ;-----------------------------------------------------------------------------
-cglobal vvc_h_loop_filter_chroma_8, 3, 4, 7, pix, stride, beta, tc, pix0
+cglobal vvc_h_loop_filter_chroma_8, 8, 9, 7, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0
     mov           pix0q, pixq
     sub           pix0q, strideq
     sub           pix0q, strideq
@@ -343,7 +353,13 @@ cglobal vvc_h_loop_filter_chroma_8, 3, 4, 7, pix, stride, beta, tc, pix0
     movhps       [pixq], m1
     RET
 
-cglobal vvc_h_loop_filter_chroma_10, 3, 4, 7, pix, stride, beta, tc, pix0
+cglobal vvc_h_loop_filter_chroma_10, 8, 9, 7, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, q_len
+    mov         q_lenb, [max_len_qq]
+    dec         q_lenb
+    jz    .chroma_weak
+    
+    RET
+.chroma_weak
     mov          pix0q, pixq
     sub          pix0q, strideq
     sub          pix0q, strideq
@@ -357,6 +373,7 @@ cglobal vvc_h_loop_filter_chroma_10, 3, 4, 7, pix, stride, beta, tc, pix0
     CLIPW           m2, m5, [pw_pixel_max_10]
     movu [pix0q+strideq], m1
     movu        [pixq], m2
+
     RET
 
 cglobal vvc_h_loop_filter_chroma_12, 3, 4, 7, pix, stride, beta, tc, pix0
@@ -379,4 +396,7 @@ cglobal vvc_h_loop_filter_chroma_12, 3, 4, 7, pix, stride, beta, tc, pix0
 INIT_XMM sse2
 LOOP_FILTER_CHROMA
 INIT_XMM avx
+LOOP_FILTER_CHROMA
+
+INIT_XMM avx2
 LOOP_FILTER_CHROMA
