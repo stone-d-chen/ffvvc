@@ -256,6 +256,23 @@ INIT_XMM sse2
 ALIGN 16
 ; input in m0 ... m3 and tcs in r2. Output in m1 and m2
 %macro CHROMA_DEBLOCK_BODY 1
+    ; load beta
+    ; movq             m7, [betaq]
+    ; psllw            m7, %1 - 8
+    ; tcq in 
+    ; movq             m8, [tcq]
+    ; movq             m9, [tcq]
+    ; pslld            m8, 2
+    ; paddd            m8, m8
+    ; paddd            m8, m9
+    ; paddd            m8, [pd_1]
+    ; psrld            m8, 1
+    ; pmulld           m8, 5
+    ; paddd            m8, 1
+    ; psrld            m8, 1
+
+
+    ; end beta calcs
     psubw            m4, m2, m1; q0 - p0
     psubw            m5, m0, m3; p1 - q1
     psllw            m4, 2; << 2
@@ -334,7 +351,7 @@ cglobal vvc_v_loop_filter_chroma_12, 4, 6, 7, pix, stride, beta, tc, pix0, r3str
 ; void ff_hevc_h_loop_filter_chroma(uint8_t *_pix, ptrdiff_t _stride, int32_t *tc,
 ;                                   uint8_t *_no_p, uint8_t *_no_q);
 ;-----------------------------------------------------------------------------
-cglobal vvc_h_loop_filter_chroma_8, 8, 9, 7, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0
+cglobal vvc_h_loop_filter_chroma_8, 8, 9, 12, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, src3stride
     mov           pix0q, pixq
     sub           pix0q, strideq
     sub           pix0q, strideq
@@ -353,9 +370,54 @@ cglobal vvc_h_loop_filter_chroma_8, 8, 9, 7, pix, stride, beta, tc, no_p, no_q, 
     movhps       [pixq], m1
     RET
 
-cglobal vvc_h_loop_filter_chroma_10, 8, 9, 7, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, q_len
+cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, q_len, src3stride
+
+    lea    src3strideq, [3 * strideq]
+    mov           pix0q, pixq
+    sub           pix0q, src3strideq
+    sub           pix0q, strideq
+
+    ; convert to mov, load all values at the same time
+    movu             m0, [pix0q];               p3
+    movu             m1, [pix0q +     strideq]; p2
+    movu             m2, [pix0q + 2 * strideq]; p1
+    movu             m3, [pix0q + src3strideq]; p0
+    movu             m4, [pixq];                q0
+    movu             m5, [pixq +     strideq];  q1
+    movu             m6, [pixq + 2 * strideq];  q2
+    movu             m7, [pixq + src3strideq];  q3
+
+
+    psllw            m9, m5, 1;
+    psubw           m11, m6, m9
+    paddw           m11, m4
+    ABS1            m11, m13
+
+    ;dp0
+    psllw            m9, m2, 1; *2
+    psubw           m10, m1, m9
+    paddw           m10, m3 
+    ABS1            m10, m11
+
+    paddw           m9, m10, m11
+
+    pshufhw         m14, m9, 0x0f  ;0b00001111;  0d3 0d3 0d0 0d0 in high
+    pshuflw         m14, m14, 0x0f ;0b00001111;  1d3 1d3 1d0 1d0 in low
+
+    pshufhw          m9, m9, 0xf0 ;0b11110000; 0d0 0d0 0d3 0d3
+    pshuflw          m9, m9, 0xf0 ;0b11110000; 1d0 1d0 1d3 1d3
+
+    paddw           m14, m9; 0d0+0d3, 1d0+1d3
+
+    ; get line 0, 3 (or 0, 1 for shift)
+
+    
+    ; jump to 0
     mov         q_lenb, [max_len_qq]
     dec         q_lenb
+
+    ; assume no shift for now, we need to construct a mask ...
+
     jz    .chroma_weak
     
     RET
@@ -376,7 +438,7 @@ cglobal vvc_h_loop_filter_chroma_10, 8, 9, 7, pix, stride, beta, tc, no_p, no_q,
 
     RET
 
-cglobal vvc_h_loop_filter_chroma_12, 3, 4, 7, pix, stride, beta, tc, pix0
+cglobal vvc_h_loop_filter_chroma_12, 8, 9, 12, pix, stride, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, q_len
     mov          pix0q, pixq
     sub          pix0q, strideq
     sub          pix0q, strideq
