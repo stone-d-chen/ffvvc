@@ -256,23 +256,7 @@ INIT_XMM sse2
 ALIGN 16
 ; input in m0 ... m3 and tcs in r2. Output in m1 and m2
 %macro CHROMA_DEBLOCK_BODY 1
-    ; load beta
-    ; movq             m7, [betaq]
-    ; psllw            m7, %1 - 8
-    ; tcq in 
-    ; movq             m8, [tcq]
-    ; movq             m9, [tcq]
-    ; pslld            m8, 2
-    ; paddd            m8, m8
-    ; paddd            m8, m9
-    ; paddd            m8, [pd_1]
-    ; psrld            m8, 1
-    ; pmulld           m8, 5
-    ; paddd            m8, 1
-    ; psrld            m8, 1
 
-
-    ; end beta calcs
     psubw            m4, m2, m1; q0 - p0
     psubw            m5, m0, m3; p1 - q1
     psllw            m4, 2; << 2
@@ -377,7 +361,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     sub           pix0q, src3strideq
     sub           pix0q, strideq
 
-    ; convert to mov, load all values at the same time
+    ; load all values at the same time
     movu             m0, [pix0q];               p3
     movu             m1, [pix0q +     strideq]; p2
     movu             m2, [pix0q + 2 * strideq]; p1
@@ -387,7 +371,8 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     movu             m6, [pixq + 2 * strideq];  q2
     movu             m7, [pixq + src3strideq];  q3
 
-
+    ; for max_len = 3 we need to determine whether to decrease the length 
+    ;dq0
     psllw            m9, m5, 1;
     psubw           m11, m6, m9
     paddw           m11, m4
@@ -401,25 +386,63 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
 
     paddw           m9, m10, m11
 
-    pshufhw         m14, m9, 0x0f  ;0b00001111;  0d3 0d3 0d0 0d0 in high
-    pshuflw         m14, m14, 0x0f ;0b00001111;  1d3 1d3 1d0 1d0 in low
+    ; load beta
+    movq             m7, [betaq]
+    psllw            m7, 10 - 8
+    punpcklqdq       m7, m7, m7
 
-    pshufhw          m9, m9, 0xf0 ;0b11110000; 0d0 0d0 0d3 0d3
-    pshuflw          m9, m9, 0xf0 ;0b11110000; 1d0 1d0 1d3 1d3
+
+    ; replicate beta values across the appropriate group of 4 samples
+    
+    pshufhw          m13, m7, q2222
+    pshuflw          m13, m13, q0000
+    ; end beta calcs 
+
+    ; create comparison lanes, can change the shuffle mask as necessary
+    ; assume no shift for now, we need to construct a mask ...
+    ; get line 0, 3 (or 0, 1 for shift)
+
+    pshufhw         m14,  m9, q0033  ;0b00001111;  0d3 0d3 0d0 0d0 in high
+    pshuflw         m14, m14, q0033 ;0b00001111;  1d3 1d3 1d0 1d0 in low
+
+    pshufhw          m9, m9, q3300 ;0b11110000; 0d0 0d0 0d3 0d3
+    pshuflw          m9, m9, q3300 ;0b11110000; 1d0 1d0 1d3 1d3
 
     paddw           m14, m9; 0d0+0d3, 1d0+1d3
 
-    ; get line 0, 3 (or 0, 1 for shift)
+    ; compare to beta
+    ; max beta value is 84
 
+    pcmpgtw          m15, m14, m13
+    ; for non-shift this is only two values, 
+    ; movmskps        r6, m15;
+
+
+    ; check if beta > d0 + d1; if any non-zero than do computation
+
+    ; for horizontal, both weak, both one-sided, one of each
+    ; for vertical, both weak, both strong, one of each
+    ; for no shift, two max_len_q/p values one for each block
+    ; create a 
+
+
+    ; tcq in 
+    ; movq             m8, [tcq]
+    ; movq             m9, [tcq]
+    ; pslld            m8, 2
+    ; paddd            m8, m8
+    ; paddd            m8, m9
+    ; paddd            m8, [pd_1]
+    ; psrld            m8, 1
+    ; pmulld           m8, 5
+    ; paddd            m8, 1
+    ; psrld            m8, 1
     
-    ; jump to 0
+
+    ; jump to weak immediately for now
     mov         q_lenb, [max_len_qq]
     dec         q_lenb
-
-    ; assume no shift for now, we need to construct a mask ...
-
     jz    .chroma_weak
-    
     RET
 .chroma_weak
     mov          pix0q, pixq
