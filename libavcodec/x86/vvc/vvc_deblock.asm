@@ -10,6 +10,7 @@ pw_pixel_max_12: times 8 dw ((1 << 12)-1)
 pw_2 :           times 8 dw  2
 pw_m2:           times 8 dw -2
 pd_1 :           times 4 dd  1
+pd_5 :           times 4 dd  5
 
 cextern pw_4
 cextern pw_8
@@ -372,29 +373,25 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     movu             m7, [pixq + src3strideq];  q3
 
     ; for max_len = 3 we need to determine whether to decrease the length 
-    ;dq0
-    psllw            m9, m5, 1;
-    psubw           m11, m6, m9
-    paddw           m11, m4
+    ; spatial activity for all q
+    psllw            m9, m5, 1; q1_ * 2
+    psubw           m11, m6, m9; p2_ - 2*q1
+    paddw           m11, m4; + q0
     ABS1            m11, m13
-
-    ;dp0
-    psllw            m9, m2, 1; *2
+    ; spatial activity for all p
+    psllw            m9, m2, 1; p1_ *2
     psubw           m10, m1, m9
     paddw           m10, m3 
     ABS1            m10, m11
 
-    paddw           m9, m10, m11
+    paddw           m9, m10, m11 ; m10, m11 just the full row calcs
 
     ; load beta
-    movq             m7, [betaq]
-    psllw            m7, 10 - 8
-    punpcklqdq       m7, m7, m7
-
-
+    movq             m8, [betaq]
+    psllw            m8, 10 - 8; 
+    punpcklqdq       m8, m8, m8
     ; replicate beta values across the appropriate group of 4 samples
-    
-    pshufhw          m13, m7, q2222
+    pshufhw          m13, m8, q2222
     pshuflw          m13, m13, q0000
     ; end beta calcs 
 
@@ -402,42 +399,116 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     ; assume no shift for now, we need to construct a mask ...
     ; get line 0, 3 (or 0, 1 for shift)
 
-    pshufhw         m14,  m9, q0033  ;0b00001111;  0d3 0d3 0d0 0d0 in high
-    pshuflw         m14, m14, q0033 ;0b00001111;  1d3 1d3 1d0 1d0 in low
+    pshufhw         m14,  m9, q0033  ;0b00001111;  d3 d3  d0 d0 in high (block 1) - low of block 9 copied
+    pshufhw          m9,  m9, q3300 ;0b11110000;    d0 d0 d3 d3 
 
-    pshufhw          m9, m9, q3300 ;0b11110000; 0d0 0d0 0d3 0d3
-    pshuflw          m9, m9, q3300 ;0b11110000; 1d0 1d0 1d3 1d3
+    pshuflw         m14, m14, q0033 ;0b00001111;   d3 d3  d0 d0 in low (block 2)
+    pshuflw           m9, m9, q3300 ;0b11110000;    d0 d0 d3 d3
 
-    paddw           m14, m9; 0d0+0d3, 1d0+1d3
+    paddw           m14, m9;   d0 + d3, d0 + d3, d0 + d3, .....
 
     ; compare to beta
     ; max beta value is 84
 
-    pcmpgtw          m15, m14, m13
+    pcmpgtw          m15, m13, m14 ; beta > d0 + d3, d0 + d3 (next block)
     ; for non-shift this is only two values, 
-    ; movmskps        r6, m15;
+    movmskps         r13, m15
+    ; if all 0 then jump to all strong; set strong mask to all
+    movu              m11, m15
+
+    ;weak / strong decision compare to beta_2
+    psraw           m15, m13, 2 ; beta >> 2
+    psllw           m8, m9, 1
+    pcmpgtw        m15, m8; d0 ..  < beta_2, d0... < beta_2, d3... <
+    ; if all 0 jump to all strong
+    pand          m11, m15
+    pshuflw       m15, m15, q0033; d3 < ... d3 < ...
+    pshufhw       m15, m15, q0033; 
+    pand          m11, m15           
+    ; all zero then jump strong strong
+
+    ;----beta_3 comparison-----
+    psubw           m12, m0, m3;      p3 - p0
+    ABS1            m12, m14; abs(p3 - p0)
+
+    psubw           m15, m7, m4;      q3 - q0
+    ABS1            m15, m14; abs(q3 - q0)
+
+    paddw           m12, m15; abs(p3 - p0) + abs(q3 - q0)
+
+    pshufhw         m12, m12, q0033 ;0b11110000;
+    pshuflw         m12, m12, q0033 ;0b11110000;
+
+    psraw           m13, 3; beta >> 3
+    pcmpgtw         m13, m12;
+    pand            m11, m13
+
+    pshufhw         m13, m13, q0033 ;0b11110000;
+    pshuflw         m13, m13, q0033 ;0b11110000;
+    pand            m11, m13
+
+    movmskps        r11, m13;
+    and             r6, r11; strong mask , beta_2 and beta_3 comparisons
+    ;----beta_3 comparison end-----
 
 
-    ; check if beta > d0 + d1; if any non-zero than do computation
+    ; tc25
+    movq             m8, [tcq]
+    movq             m9, [tcq]
+    pmulld           m8, [pd_5]
+    paddd            m8, [pd_1]
+    psrld            m8, 1     ; ((tc * 5 + 1) >> 1);
 
-    ; for horizontal, both weak, both one-sided, one of each
-    ; for vertical, both weak, both strong, one of each
-    ; for no shift, two max_len_q/p values one for each block
-    ; create a 
+    punpcklqdq       m8, m8, m8
+    ; replicate beta values across the appropriate group of 4 samples
+    pshufhw          m8, m8, q2222
+    pshuflw          m8, m8, q0000
+    ; end beta calcs 
+
+    ;----tc25 comparison---
+    psubw           m12, m3, m4;      p0 - q0
+    ABS1            m12, m14; abs(p0 - q0)
+
+    pshufhw         m12, m12, q3300 ;0b11110000;
+    pshuflw         m12, m12, q3300 ;0b11110000;
+
+    pcmpgtw          m8, m12; tc25 comparisons
+    pand             m11, m8
+
+    pshufhw         m8, m8, q0033 ;0b11110000;
+    pshuflw         m8, m8, q0033 ;0b11110000;
+    pand            m11, m8
+
+    ;movmskb        r11, m8;
+    and             r6, r11; strong mask, beta_2, beta_3 and tc25 comparisons
+    jz             .chroma_weak
+    ;----tc25 comparison end---
+
+    ; do strong mask
 
 
-    ; tcq in 
-    ; movq             m8, [tcq]
-    ; movq             m9, [tcq]
-    ; pslld            m8, 2
-    ; paddd            m8, m8
-    ; paddd            m8, m9
-    ; paddd            m8, [pd_1]
-    ; psrld            m8, 1
-    ; pmulld           m8, 5
-    ; paddd            m8, 1
-    ; psrld            m8, 1
+    pshuflw          m8, m2, 1
+    paddw            m8, m2
+
+    pshuflw          m15, m3, 1
+    paddw            m8, m15
+    paddw            m8, m4
+    paddw            m8, m5
+    paddw            m8, m6
+    paddw            m8, [pw_4]
+    pshuflw          m8, 3
+    ; CLIPW          m8
+
+
+
+
+    ;
     
+    pcmpeqd     m9, m9, m9
+    pxor        m8, m9
+
+    ; calculate weak
+
 
     ; jump to weak immediately for now
     mov         q_lenb, [max_len_qq]
@@ -478,8 +549,6 @@ cglobal vvc_h_loop_filter_chroma_12, 8, 9, 12, pix, stride, stride, beta, tc, no
     RET
 %endmacro
 
-INIT_XMM sse2
-LOOP_FILTER_CHROMA
 INIT_XMM avx
 LOOP_FILTER_CHROMA
 
