@@ -413,8 +413,8 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     pcmpgtw          m15, m13, m14 ; beta > d0 + d3, d0 + d3 (next block)
     ; for non-shift this is only two values, 
     movmskps         r13, m15
-    ; if all 0 then jump to all strong; set strong mask to all
     movu              m11, m15
+    ; if all 0 then jump to all strong
 
     ;weak / strong decision compare to beta_2
     psraw           m15, m13, 2 ; beta >> 2
@@ -447,10 +447,9 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     pshuflw         m13, m13, q0033 ;0b11110000;
     pand            m11, m13
 
-    movmskps        r11, m13;
-    and             r6, r11; strong mask , beta_2 and beta_3 comparisons
+    movmskps        r11, m13; zero represents strong
+    and             r6, r11; 
     ;----beta_3 comparison end-----
-
 
     ; tc25
     movq             m8, [tcq]
@@ -480,42 +479,48 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     pand            m11, m8
 
     ;movmskb        r11, m8;
-    and             r6, r11; strong mask, beta_2, beta_3 and tc25 comparisons
-    jz             .chroma_weak
+    ;and             r6, r11; strong mask, beta_2, beta_3 and tc25 comparisons
+    ;jz             .chroma_weak
     ;----tc25 comparison end---
-
-    ; do strong mask
-
-
-    pshuflw          m8, m2, 1
-    paddw            m8, m2
-
-    pshuflw          m15, m3, 1
-    paddw            m8, m15
-    paddw            m8, m4
-    paddw            m8, m5
-    paddw            m8, m6
-    paddw            m8, [pw_4]
-    pshuflw          m8, 3
-    ; CLIPW          m8
-
-
-
-
-    ;
     
-    pcmpeqd     m9, m9, m9
-    pxor        m8, m9
+
+    ; the mask is actually a weak mask
+
+    
+    ; pcmpeqd     m9, m9, m9
+    ; pxor        m8, m9
 
     ; calculate weak
 
+    movu             m0, m2 ;
+    movu             m1, m3 ;
+    movu             m2, m4 ;
+    movu             m3, m5 ;
+    
+    CHROMA_DEBLOCK_BODY 10
+    pxor            m5, m5; zeros reg
+    CLIPW           m1, m5, [pw_pixel_max_10] ; p0
+    CLIPW           m2, m5, [pw_pixel_max_10] ; q0
 
-    ; jump to weak immediately for now
-    mov         q_lenb, [max_len_qq]
-    dec         q_lenb
-    jz    .chroma_weak
+    MASKED_COPY    [pix0q + src3strideq], m1
+    MASKED_COPY             [pixq], m2
     RET
-.chroma_weak
+    
+
+
+    ; pshuflw          m8, m2, 1
+    ; paddw            m8, m2
+
+    ; pshuflw          m15, m3, 1
+    ; paddw            m8, m15
+    ; paddw            m8, m4
+    ; paddw            m8, m5
+    ; paddw            m8, m6
+    ; paddw            m8, [pw_4]
+    ; pshuflw          m8, 3
+    ; CLIPW          m8
+
+.chroma_weak ; unused for now
     mov          pix0q, pixq
     sub          pix0q, strideq
     sub          pix0q, strideq
