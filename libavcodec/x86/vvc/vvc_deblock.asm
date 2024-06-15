@@ -243,6 +243,13 @@ INIT_XMM sse2
     mova             %1, %2
 %endmacro
 
+%macro MASKED_COPY_NOT 2
+    pandn          %2, m11, %2 ; and -mask
+    pand           m10, m11, %1; and mask
+    por              %2, m10
+    mova             %1, %2
+%endmacro
+
 ; in: %2 clobbered
 ; out: %1
 ; mask in %3, will be clobbered
@@ -271,17 +278,11 @@ ALIGN 16
 %if   %1 == 8
     paddw            m6, [pw_2]
     psraw            m6, 2
-%elif %1 == 10
 %elif %1 == 12
     psllw            m6, 2
 %endif
 
-%if cpuflag(ssse3)
     psignw           m4, m6, [pw_m1]; -tc0, -tc1
-%else
-    pmullw           m4, m6, [pw_m1]; -tc0, -tc1
-%endif
-    ;end tc calculations
 
     paddw            m5, [pw_4]; +4
     psraw            m5, 3; >> 3
@@ -453,15 +454,18 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
 
     ; tc25
     movq             m8, [tcq]
-    movq             m9, [tcq]
-    pmulld           m8, [pd_5]
-    paddd            m8, [pd_1]
-    psrld            m8, 1     ; ((tc * 5 + 1) >> 1);
 
     punpcklqdq       m8, m8, m8
     ; replicate beta values across the appropriate group of 4 samples
     pshufhw          m8, m8, q2222
     pshuflw          m8, m8, q0000
+
+    movu             m9, m8
+
+    pmulld           m8, [pd_5]
+    paddd            m8, [pd_1]
+    psrld            m8, 1     ; ((tc * 5 + 1) >> 1);
+
     ; end beta calcs 
 
     ;----tc25 comparison---
@@ -471,24 +475,86 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     pshufhw         m12, m12, q3300 ;0b11110000;
     pshuflw         m12, m12, q3300 ;0b11110000;
 
-    pcmpgtw          m8, m12; tc25 comparisons
-    pand             m11, m8
+    pcmpgtw          m15, m8, m12; tc25 comparisons
+    pand             m11, m15
 
-    pshufhw         m8, m8, q0033 ;0b11110000;
-    pshuflw         m8, m8, q0033 ;0b11110000;
-    pand            m11, m8
+    pshufhw         m15, m15, q0033 ;0b11110000;
+    pshuflw         m15, m15, q0033 ;0b11110000;
+    pand            m11, m15
 
-    ;movmskb        r11, m8;
-    ;and             r6, r11; strong mask, beta_2, beta_3 and tc25 comparisons
-    ;jz             .chroma_weak
     ;----tc25 comparison end---
     
 
-    ; the mask is actually a weak mask
+    ; the mask is actually a weak mask (1 = weak, 0 = strong)
+    ; m11 mask, m8/m9 tc
+    psignw           m8, m9, [pw_m1]; -tc0, -tc1
 
-    
-    ; pcmpeqd     m9, m9, m9
-    ; pxor        m8, m9
+
+    ; weak one-sided
+    ; p0
+    paddw          m0, m3, m4 ; p0 + q0
+    paddw          m0, m5     ; p0 + q0 + q1
+    paddw          m0, m6     ; p0 + q0 + q1 + q2
+    paddw          m0, [pw_4]; p0 + q0 + q1 + q2 + 4
+    movu           m10, m0 
+    psllw          m0, m2, 1
+    paddw          m0, m2
+    paddw          m0, m10
+    paddw          m0, m3
+    psrlw           m0, 3
+
+    paddw           m8, m3 ; p0 - tc
+    paddd           m9, m3 ; p0 + tc
+    CLIPW           m0, m8, m9
+    psubw           m8, m3
+    psubw           m9, m3
+
+    ; q0
+    psllw          m12, m2, 1
+    paddw          m12, m10 
+    paddw          m12, m4   ; q0
+    paddw          m12, m7   ;q3
+
+    psrlw          m12, 3
+
+    paddw          m8, m4 ; q0 - tc
+    paddw          m9, m4 ; q0 + tc
+    CLIPW          m12, m8, m9
+    psubw          m8, m4  ; 
+    psubw          m9, m4  ; 
+
+    ; q1
+    psllw          m13, m7, 1
+    paddw          m13, m10
+    paddw          m13, m5
+    paddw          m13, m2
+
+    psrlw          m13, 3
+
+    paddw          m8, m5 ; p0 - tc
+    paddw          m9, m5 ; p0 + tc
+    CLIPW          m13, m8, m9
+    psubw          m8, m5  ; 
+    psubw          m9, m5  ; 
+
+    ;q2 
+    psllw          m14, m7, 1
+    paddw          m14, m7
+    paddw          m14, m10
+    paddw          m14, m6
+
+    psrlw          m14, 3
+
+    paddw          m8, m6 ; p0 - tc
+    paddw          m9, m6 ; p0 + tc
+    CLIPW         m14, m8, m9
+    psubw          m8, m6  ; 
+    psubw          m9, m6  ; 
+
+    MASKED_COPY_NOT   m3, m0  ; m2
+    MASKED_COPY_NOT   m4, m12 ; m3
+    MASKED_COPY_NOT   m5, m13 ; m4
+    MASKED_COPY_NOT   m6, m14 ; m5
 
     ; calculate weak
 
