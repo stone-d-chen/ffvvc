@@ -489,8 +489,60 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     ; m11 mask, m8/m9 tc
     psignw           m8, m9, [pw_m1]; -tc0, -tc1
 
+    ; strong
+    ; p0
+    paddw         m12, m0, m1
+    paddw         m12, m2
+    paddw         m12, m3
+    paddw         m12, m4
+    paddw         m12, [pw_4]
+    movu          m15, m12 ; p3 +  p2 + p1 +  p0 +   q0 + 4
+    paddw         m12, m3
+    paddw         m12, m5 ; q1
+    paddw         m12, m6 ; q2
+    psrlw           m0, 3
 
-    ; weak one-sided
+    ; p1
+    paddw        m13, m15, m10
+    paddw        m13, m2
+    paddw        m13, m5
+    psrlw         m0, 3
+
+    ; p2
+    psllw        m14, m15, 1
+    paddw        m14, m10
+    paddw        m14, m1
+
+
+    ; q0
+    paddw        m0, m3, m4
+    paddw        m0, m5
+    paddw        m0, m6
+    paddw        m0, m7
+    paddw        m0, [pw_4]
+    movu         m15, m0  ; p0 + q0 + q1 + q2 + q3+ 4
+    paddw        m0, m1   ; p2 free
+    paddw        m0, m2
+    paddw        m0, m3
+    psrlw         m0, 3
+  
+    ; q1
+    paddw        m1, m2, m15; p1 + ...
+    paddw        m1, m5
+    paddw        m1, m7
+    psrlw        m1, 3
+
+    ; q2
+    paddw        m15, m7
+    paddw        m15, m7
+    paddw        m15, m6
+    psrlw        m15, 3
+
+
+
+
+
+    ; strong one-sided
     ; p0
     paddw          m0, m3, m4 ; p0 + q0
     paddw          m0, m5     ; p0 + q0 + q1
