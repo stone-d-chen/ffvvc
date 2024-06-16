@@ -363,7 +363,10 @@ cglobal vvc_h_loop_filter_chroma_8, 8, 9, 12, pix, stride, beta, tc, no_p, no_q,
     movhps       [pixq], m1
     RET
 
-cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, q_len, src3stride
+; (uint8_t *pix, ptrdiff_t stride,
+;     const int32_t *beta, const int32_t *tc, const uint8_t *no_p, const uint8_t *no_q,
+;     const uint8_t *max_len_p, const uint8_t *max_len_q, int shift)
+cglobal vvc_h_loop_filter_chroma_10, 9, 12, 15, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
 
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
@@ -381,21 +384,21 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     movu             m7, [pixq + src3strideq]  ;  q3
 
     ; for max_len = 3 we need to determine whether to decrease the length 
-    ; spatial activity for all q
-    psllw            m9, m5, 1   ; q1_ * 2
-    psubw           m11, m6, m9  ; p2_ - 2*q1
-    paddw           m11, m4      ; + q0
+    psllw            m9, m5, 1   
+    psubw           m11, m6, m9  
+    paddw           m11, m4      
     ABS1            m11, m13
-    ; spatial activity for all p
-    psllw            m9, m2, 1   ; p1_ *2
+
+    psllw            m9, m2, 1   
     psubw           m10, m1, m9
     paddw           m10, m3 
     ABS1            m10, m11
 
-    paddw           m9, m10, m11 ; m10, m11 just the full row calcs
+    paddw           m9, m10, m11  ; m9 spatial activity sum for all cols
 
-    ; load beta
-    movq             m8, [betaq]
+    ; ----  load beta   --------
+    
+    movq             m8, [betaq]  ; quad load 8 values for shift
     psllw            m8, 10 - 8; 
     punpcklqdq       m8, m8, m8
 
@@ -403,46 +406,76 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     pshuflw          m13, m13, q0000
     ; end beta calcs 
 
-    pshufhw         m14,  m9, q0033  ;0b00001111;  d3 d3  d0 d0 in high (block 1) - low of block 9 copied
-    pshufhw          m9,  m9, q3300  ;0b11110000;    d0 d0 d3 d3 
+            ; SHIFT VERSION
+            movdqu           m8, [betaq]  ; quad load 8 values for shift
+            psllw            m8, 10 - 8; 
 
-    pshuflw         m14, m14, q0033  ;0b00001111;   d3 d3  d0 d0 in low (block 2)
-    pshuflw          m9, m9, q3300  ;0b11110000;    d0 d0 d3 d3
+            pshufhw          m13, m8,  q2200
+            pshuflw          m13, m13, q2200
+            ; END SHIFT VERSION
 
-    paddw           m14, m9         ;   d0 + d3, d0 + d3, d0 + d3, .....
+    ; pshufhw         m14,  m9, q0033  ;0b00001111;  d3 d3  d0 d0 in high (block 1) - low of block 9 copied
+    ; pshufhw          m9,  m9, q3300  ;0b11110000;    d0 d0 d3 d3 
+    ; pshuflw         m14, m14, q0033  ;0b00001111;   d3 d3  d0 d0 in low (block 2)
+    ; pshuflw          m9, m9, q3300  ;0b11110000;    d0 d0 d3 d3
+
+            ; SHIFT VERSION
+            pshufhw         m14,  m9, q3210  ;
+            pshufhw          m9,  m9, q2301  ;                              
+            pshuflw         m14, m14, q3210  ;
+            pshuflw          m9, m9,  q2301  ;  
+            ;  end shift version
+            
+    paddw             m14, m9         ;   d0 + d3, d0 + d3, d0 + d3, .....
 
     pcmpgtw          m15, m13, m14 ; beta > d0 + d3, d0 + d3 (next block)
     movu             m11, m15      ; if all 0 then jump to all strong
 
     ;weak / strong decision compare to beta_2
-    psraw           m15, m13, 2 ; beta >> 2
-    psllw           m8, m9, 1
-    pcmpgtw        m15, m8; d0 ..  < beta_2, d0... < beta_2, d3... <
+    psraw          m15, m13, 2   ; beta >> 2
+    psllw           m8, m9, 1    ;  d0, d1, d2, d3, ...
+    pcmpgtw        m15, m8        ; d0 ..  < beta_2, d0... < beta_2, d3... <
   
-    pand          m11, m15
-    pshuflw       m15, m15, q0033; d3 < ... d3 < ...
-    pshufhw       m15, m15, q0033; 
-    pand          m11, m15           
+    ; pand          m11, m15
+    ; pshuflw       m15, m15, q0033    ; d3 < ... d3 < ...
+    ; pshufhw       m15, m15, q0033    ; 
+    ; pand          m11, m15
+
+    ; shift
+    pshuflw       m15, m15, q2301    ; d3 < ... d3 < ...
+    pshufhw       m15, m15, q2301    ; 
+    pand          m11, m15                      
     ; all zero then jump strong strong
 
     ;----beta_3 comparison-----
-    psubw           m12, m0, m3;      p3 - p0
-    ABS1            m12, m14; abs(p3 - p0)
+    psubw           m12, m0, m3     ; p3 - p0
+    ABS1            m12, m14        ; abs(p3 - p0)
 
-    psubw           m15, m7, m4;      q3 - q0
-    ABS1            m15, m14; abs(q3 - q0)
+    psubw           m15, m7, m4     ; q3 - q0
+    ABS1            m15, m14        ; abs(q3 - q0)
 
-    paddw           m12, m15; abs(p3 - p0) + abs(q3 - q0)
+    paddw           m12, m15        ; abs(p3 - p0) + abs(q3 - q0)
 
-    pshufhw         m12, m12, q0033 ;0b11110000;
-    pshuflw         m12, m12, q0033 ;0b11110000;
+    pshufhw         m12, m12, q3300 
+    pshuflw         m12, m12, q3300 
+    ; if shift, don't need to shuffle
+    ; endshift
 
-    psraw           m13, 3; beta >> 3
-    pcmpgtw         m13, m12;
+    psraw           m13, 3          ; beta >> 3
+    pcmpgtw         m13, m12        ; clobber beta?
     pand            m11, m13
 
-    pshufhw         m13, m13, q0033 ;0b11110000;
-    pshuflw         m13, m13, q0033 ;0b11110000;
+   
+    pshufhw         m13, m13, q0033
+    pshuflw         m13, m13, q0033
+
+    ; if shift then shuffle
+
+    pshufhw         m13, m13, q2301
+    pshuflw         m13, m13, q2301
+
+    ; endshift
+
     pand            m11, m13
 
     ;----beta_3 comparison end-----
@@ -450,9 +483,8 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     ;----tc25 comparison---
     
     movq             m8, [tcq]
-
     punpcklqdq       m8, m8, m8
-    ; replicate beta values across the appropriate group of 4 samples
+
     pshufhw          m8, m8, q2222
     pshuflw          m8, m8, q0000
 
@@ -460,20 +492,27 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
 
     pmulld           m8, [pd_5]
     paddd            m8, [pd_1]
-    psrld            m8, 1     ; ((tc * 5 + 1) >> 1);
+    psrld            m8, 1          ; ((tc * 5 + 1) >> 1);
 
     ; --- comparison
-    psubw           m12, m3, m4;      p0 - q0
-    ABS1            m12, m14; abs(p0 - q0)
+    psubw           m12, m3, m4     ;      p0 - q0
+    ABS1            m12, m14        ; abs(p0 - q0)
 
-    pshufhw         m12, m12, q3300 ;0b11110000;
-    pshuflw         m12, m12, q3300 ;0b11110000;
+    pshufhw         m12, m12, q3300  
+    pshuflw         m12, m12, q3300
 
-    pcmpgtw          m15, m8, m12; tc25 comparisons
+    ; shift do nothing
+
+    pcmpgtw          m15, m8, m12   ; tc25 comparisons
     pand             m11, m15
 
-    pshufhw         m15, m15, q0033 ;0b11110000;
-    pshuflw         m15, m15, q0033 ;0b11110000;
+    pshufhw         m15, m15, q0033 
+    pshuflw         m15, m15, q0033 
+
+    ; shift 
+    pshufhw         m15, m15, q2301 
+    pshuflw         m15, m15, q2301
+    ;end shift
     pand            m11, m15
 
     ;----tc25 comparison end---
@@ -488,10 +527,10 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     paddw         m12, m3
     paddw         m12, m4
     paddw         m12, [pw_4]
-    movu          m15, m12 ; p3 +  p2 + p1 +  p0 +   q0 + 4
+    movu          m15, m12      ; p3 +  p2 + p1 +  p0 +   q0 + 4
     paddw         m12, m3
-    paddw         m12, m5 ; q1
-    paddw         m12, m6 ; q2
+    paddw         m12, m5       ; q1
+    paddw         m12, m6       ; q2
     psrlw         m12, 3
     CLIP_RESTORE  m12, m3, m8, m9
     
