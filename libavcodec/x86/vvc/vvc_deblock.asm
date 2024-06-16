@@ -293,7 +293,14 @@ ALIGN 16
     psubw            m2, m5; q0 - delta0
 %endmacro
 
+%macro CLIP_RESTORE 4  ; toclip, value, -tc, +tc
+    paddw           %3, %2
+    paddd           %4, %2
+    CLIPW           %1, %3, %4
+    psubw           %3, %2
+    psubw           %4, %2
 
+%endmacro
 
 ;-----------------------------------------------------------------------------
 ; void ff_hevc_v_loop_filter_chroma(uint8_t *_pix, ptrdiff_t _stride, int32_t *tc,
@@ -364,23 +371,23 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     sub           pix0q, strideq
 
     ; load all values at the same time
-    movu             m0, [pix0q];               p3
-    movu             m1, [pix0q +     strideq]; p2
-    movu             m2, [pix0q + 2 * strideq]; p1
-    movu             m3, [pix0q + src3strideq]; p0
-    movu             m4, [pixq];                q0
-    movu             m5, [pixq +     strideq];  q1
-    movu             m6, [pixq + 2 * strideq];  q2
-    movu             m7, [pixq + src3strideq];  q3
+    movu             m0, [pix0q]               ;  p3
+    movu             m1, [pix0q +     strideq] ;  p2
+    movu             m2, [pix0q + 2 * strideq] ;  p1
+    movu             m3, [pix0q + src3strideq] ;  p0
+    movu             m4, [pixq]                ;  q0
+    movu             m5, [pixq +     strideq]  ;  q1
+    movu             m6, [pixq + 2 * strideq]  ;  q2
+    movu             m7, [pixq + src3strideq]  ;  q3
 
     ; for max_len = 3 we need to determine whether to decrease the length 
     ; spatial activity for all q
-    psllw            m9, m5, 1; q1_ * 2
-    psubw           m11, m6, m9; p2_ - 2*q1
-    paddw           m11, m4; + q0
+    psllw            m9, m5, 1   ; q1_ * 2
+    psubw           m11, m6, m9  ; p2_ - 2*q1
+    paddw           m11, m4      ; + q0
     ABS1            m11, m13
     ; spatial activity for all p
-    psllw            m9, m2, 1; p1_ *2
+    psllw            m9, m2, 1   ; p1_ *2
     psubw           m10, m1, m9
     paddw           m10, m3 
     ABS1            m10, m11
@@ -391,37 +398,27 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     movq             m8, [betaq]
     psllw            m8, 10 - 8; 
     punpcklqdq       m8, m8, m8
-    ; replicate beta values across the appropriate group of 4 samples
+
     pshufhw          m13, m8, q2222
     pshuflw          m13, m13, q0000
     ; end beta calcs 
 
-    ; create comparison lanes, can change the shuffle mask as necessary
-    ; assume no shift for now, we need to construct a mask ...
-    ; get line 0, 3 (or 0, 1 for shift)
-
     pshufhw         m14,  m9, q0033  ;0b00001111;  d3 d3  d0 d0 in high (block 1) - low of block 9 copied
-    pshufhw          m9,  m9, q3300 ;0b11110000;    d0 d0 d3 d3 
+    pshufhw          m9,  m9, q3300  ;0b11110000;    d0 d0 d3 d3 
 
-    pshuflw         m14, m14, q0033 ;0b00001111;   d3 d3  d0 d0 in low (block 2)
-    pshuflw           m9, m9, q3300 ;0b11110000;    d0 d0 d3 d3
+    pshuflw         m14, m14, q0033  ;0b00001111;   d3 d3  d0 d0 in low (block 2)
+    pshuflw          m9, m9, q3300  ;0b11110000;    d0 d0 d3 d3
 
-    paddw           m14, m9;   d0 + d3, d0 + d3, d0 + d3, .....
-
-    ; compare to beta
-    ; max beta value is 84
+    paddw           m14, m9         ;   d0 + d3, d0 + d3, d0 + d3, .....
 
     pcmpgtw          m15, m13, m14 ; beta > d0 + d3, d0 + d3 (next block)
-    ; for non-shift this is only two values, 
-    movmskps         r13, m15
-    movu              m11, m15
-    ; if all 0 then jump to all strong
+    movu             m11, m15      ; if all 0 then jump to all strong
 
     ;weak / strong decision compare to beta_2
     psraw           m15, m13, 2 ; beta >> 2
     psllw           m8, m9, 1
     pcmpgtw        m15, m8; d0 ..  < beta_2, d0... < beta_2, d3... <
-    ; if all 0 jump to all strong
+  
     pand          m11, m15
     pshuflw       m15, m15, q0033; d3 < ... d3 < ...
     pshufhw       m15, m15, q0033; 
@@ -448,11 +445,10 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     pshuflw         m13, m13, q0033 ;0b11110000;
     pand            m11, m13
 
-    movmskps        r11, m13; zero represents strong
-    and             r6, r11; 
     ;----beta_3 comparison end-----
 
-    ; tc25
+    ;----tc25 comparison---
+    
     movq             m8, [tcq]
 
     punpcklqdq       m8, m8, m8
@@ -466,9 +462,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     paddd            m8, [pd_1]
     psrld            m8, 1     ; ((tc * 5 + 1) >> 1);
 
-    ; end beta calcs 
-
-    ;----tc25 comparison---
+    ; --- comparison
     psubw           m12, m3, m4;      p0 - q0
     ABS1            m12, m14; abs(p0 - q0)
 
@@ -484,12 +478,10 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
 
     ;----tc25 comparison end---
     
+    ; get clipping mask ready
+    psignw           m8, m9, [pw_m1]; -tc0, -tc1 ; m11 mask, m8/m9 tc
 
-    ; the mask is actually a weak mask (1 = weak, 0 = strong)
-    ; m11 mask, m8/m9 tc
-    psignw           m8, m9, [pw_m1]; -tc0, -tc1
-
-    ; strong
+    ; --------  strong calcs -------    
     ; p0
     paddw         m12, m0, m1
     paddw         m12, m2
@@ -500,108 +492,102 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     paddw         m12, m3
     paddw         m12, m5 ; q1
     paddw         m12, m6 ; q2
-    psrlw           m0, 3
-
+    psrlw         m12, 3
+    CLIP_RESTORE  m12, m3, m8, m9
+    
     ; p1
     paddw        m13, m15, m10
     paddw        m13, m2
     paddw        m13, m5
     psrlw         m0, 3
+    CLIP_RESTORE  m13, m2, m8, m9
 
     ; p2
-    psllw        m14, m15, 1
-    paddw        m14, m10
-    paddw        m14, m1
-
+    psllw         m14, m15, 1
+    paddw         m14, m10
+    paddw         m14, m1
+    CLIP_RESTORE  m14, m1, m8, m9
 
     ; q0
-    paddw        m0, m3, m4
-    paddw        m0, m5
-    paddw        m0, m6
-    paddw        m0, m7
-    paddw        m0, [pw_4]
-    movu         m15, m0  ; p0 + q0 + q1 + q2 + q3+ 4
-    paddw        m0, m1   ; p2 free
-    paddw        m0, m2
-    paddw        m0, m3
+    ; clobber m0 / P3 - not used anymore
+    paddw         m0, m3, m4
+    paddw         m0, m5
+    paddw         m0, m6
+    paddw         m0, m7
+    paddw         m0, [pw_4]
+    movu          m15, m0  ; p0 + q0 + q1 + q2 + q3+ 4
+    paddw         m0, m1   ; p2 free
+    paddw         m0, m2
+    paddw         m0, m3
     psrlw         m0, 3
-  
+    CLIP_RESTORE  m0, m4, m8, m9
+
     ; q1
-    paddw        m1, m2, m15; p1 + ...
-    paddw        m1, m5
-    paddw        m1, m7
-    psrlw        m1, 3
+    ; clobber m1 / P2 - last use was q0 calc
+    paddw         m1, m2, m15; p1 + ...
+    paddw         m1, m5
+    paddw         m1, m7
+    psrlw         m1, 3
+    CLIP_RESTORE  m1, m5, m8, m9
 
     ; q2
-    paddw        m15, m7
-    paddw        m15, m7
-    paddw        m15, m6
-    psrlw        m15, 3
+    ; clobber m15 - sum is fully used
+    paddw         m15, m7
+    paddw         m15, m7
+    paddw         m15, m6
+    psrlw         m15, 3
+    CLIP_RESTORE  m15, m6, m8, m9
 
-
-
-
+    MASKED_COPY_NOT m3, m12 ; p0 
+    MASKED_COPY_NOT m2, m13 ; p1
+    MASKED_COPY_NOT m1, m14 ; p2
+    MASKED_COPY_NOT m4, m0  ; q0
+    MASKED_COPY_NOT m5, m1  ; q1
+    MASKED_COPY_NOT m6, m15 ; q2
 
     ; strong one-sided
-    ; p0
-    paddw          m0, m3, m4 ; p0 + q0
-    paddw          m0, m5     ; p0 + q0 + q1
-    paddw          m0, m6     ; p0 + q0 + q1 + q2
-    paddw          m0, [pw_4]; p0 + q0 + q1 + q2 + 4
-    movu           m10, m0 
-    psllw          m0, m2, 1
+    ; p0   -  clobber p3 again
+    paddw          m0, m3, m4 ;      p0 + q0
+    paddw          m0, m5     ;      p0 + q0 + q1
+    paddw          m0, m6     ;      p0 + q0 + q1 + q2
+    paddw          m0, [pw_4] ;      p0 + q0 + q1 + q2 + 4
+    paddw          m0, m2     ; p1 + p0 + q0 + q1 + q2 + 4
+    movu           m15, m0 
     paddw          m0, m2
-    paddw          m0, m10
+    paddw          m0, m2
     paddw          m0, m3
-    psrlw           m0, 3
+    psrlw          m0, 3
 
-    paddw           m8, m3 ; p0 - tc
-    paddd           m9, m3 ; p0 + tc
-    CLIPW           m0, m8, m9
-    psubw           m8, m3
-    psubw           m9, m3
+    CLIP_RESTORE   m0, m3, m8, m9
 
     ; q0
-    psllw          m12, m2, 1
-    paddw          m12, m10 
-    paddw          m12, m4   ; q0
+    paddw          m12, m2, m15
+    paddw          m12, m4   ;q0
     paddw          m12, m7   ;q3
 
     psrlw          m12, 3
 
-    paddw          m8, m4 ; q0 - tc
-    paddw          m9, m4 ; q0 + tc
-    CLIPW          m12, m8, m9
-    psubw          m8, m4  ; 
-    psubw          m9, m4  ; 
+    CLIP_RESTORE   m12, m4, m8, m9
 
     ; q1
-    psllw          m13, m7, 1
-    paddw          m13, m10
-    paddw          m13, m5
-    paddw          m13, m2
+    psllw          m13, m7, 1 ; 2*q3
+    paddw          m13, m15  
+    paddw          m13, m5   ; q1
 
     psrlw          m13, 3
 
-    paddw          m8, m5 ; p0 - tc
-    paddw          m9, m5 ; p0 + tc
-    CLIPW          m13, m8, m9
-    psubw          m8, m5  ; 
-    psubw          m9, m5  ; 
+    CLIP_RESTORE   m13, m5, m8, m9
 
     ;q2 
     psllw          m14, m7, 1
     paddw          m14, m7
-    paddw          m14, m10
+    paddw          m14, m15
     paddw          m14, m6
+    psubw          m14, m3  ; sub p0
 
     psrlw          m14, 3
 
-    paddw          m8, m6 ; p0 - tc
-    paddw          m9, m6 ; p0 + tc
-    CLIPW         m14, m8, m9
-    psubw          m8, m6  ; 
-    psubw          m9, m6  ; 
+    CLIP_RESTORE   m14, m6, m8, m9
 
     MASKED_COPY_NOT   m3, m0  ; m2
     MASKED_COPY_NOT   m4, m12 ; m3
@@ -623,20 +609,6 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 11, 12, pix, stride, beta, tc, no_p, no_
     MASKED_COPY    [pix0q + src3strideq], m1
     MASKED_COPY             [pixq], m2
     RET
-    
-
-
-    ; pshuflw          m8, m2, 1
-    ; paddw            m8, m2
-
-    ; pshuflw          m15, m3, 1
-    ; paddw            m8, m15
-    ; paddw            m8, m4
-    ; paddw            m8, m5
-    ; paddw            m8, m6
-    ; paddw            m8, [pw_4]
-    ; pshuflw          m8, 3
-    ; CLIPW          m8
 
 .chroma_weak ; unused for now
     mov          pix0q, pixq
