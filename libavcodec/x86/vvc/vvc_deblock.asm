@@ -262,35 +262,21 @@ INIT_XMM sse2
 
 
 ALIGN 16
-; input in m0 ... m3 and tcs in r2. Output in m1 and m2
 %macro CHROMA_DEBLOCK_BODY 1
+    psubw            m12, m4, m3; q0 - p0
+    psubw            m13, m2, m5; p1 - q1
+    psllw            m12, 2; << 2
+    paddw            m13, m12;
 
-    psubw            m4, m2, m1; q0 - p0
-    psubw            m5, m0, m3; p1 - q1
-    psllw            m4, 2; << 2
-    paddw            m5, m4;
+    paddw            m13, [pw_4]; +4
+    psraw            m13, 3; >> 3
 
-    ;tc calculations
-    movq             m6, [tcq]; tc0
-    punpcklwd        m6, m6
-    pshufd           m6, m6, 0xA0; tc0, tc1
-
-%if   %1 == 8
-    paddw            m6, [pw_2]
-    psraw            m6, 2
-%elif %1 == 12
-    psllw            m6, 2
-%endif
-
-    psignw           m4, m6, [pw_m1]; -tc0, -tc1
-
-    paddw            m5, [pw_4]; +4
-    psraw            m5, 3; >> 3
-
-    pmaxsw           m5, m4
-    pminsw           m5, m6
-    paddw            m1, m5; p0 + delta0
-    psubw            m2, m5; q0 - delta0
+    pmaxsw           m13, m8
+    pminsw           m13, m9
+    paddw            m14, m3, m13; p0 + delta0
+    psubw            m15, m4, m13; q0 - delta0
+    MASKED_COPY_NOT  m3, m14
+    MASKED_COPY_NOT  m4, m15
 %endmacro
 
 %macro CLIP_RESTORE 4  ; toclip, value, -tc, +tc
@@ -624,7 +610,6 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
 .prep_clipping_masks:
     psignw           m8, m9, [pw_m1]; -tc0, -tc1 ; m11 mask, m8/m9 tc
 
-
     ; strong one-sided
     ; p0   -  clobber p3 again
     paddw          m0, m3, m4 ;      p0 + q0
@@ -669,31 +654,28 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
 
     CLIP_RESTORE   m14, m6, m8, m9
 
-    MASKED_COPY   [pix0q + src3strideq], m0  ; m2
-    MASKED_COPY   [pixq], m12 ; m3
-    MASKED_COPY   [pixq +     strideq], m13 ; m4
-    MASKED_COPY   [pixq + 2 * strideq], m14 ; m5
-
     MASKED_COPY   m3, m0  ; m2
     MASKED_COPY   m4, m12 ; m3
     MASKED_COPY   m5, m13 ; m4
     MASKED_COPY   m6, m14 ; m5
 
     ; calculate weak
-
-    movu             m0, m2 ;
-    movu             m1, m3 ;
-    movu             m2, m4 ;
-    movu             m3, m5 ;
+.chroma_weak
     
     CHROMA_DEBLOCK_BODY 10
-    pxor            m5, m5; zeros reg
-    CLIPW           m1, m5, [pw_pixel_max_10] ; p0
-    CLIPW           m2, m5, [pw_pixel_max_10] ; q0
+    pxor           m12, m12; zeros reg
 
-    MASKED_COPY_NOT    [pix0q + src3strideq], m1
-    MASKED_COPY_NOT             [pixq], m2
-    RET
+    CLIPW           m3, m12, [pw_pixel_max_10] ; p0
+    CLIPW           m4, m12, [pw_pixel_max_10] ; q0
+    CLIPW           m5, m12, [pw_pixel_max_10] ; p0
+    CLIPW           m6, m12, [pw_pixel_max_10] ; p0
+
+    movu   [pix0q + src3strideq], m3
+    movu                  [pixq], m4
+    movu    [pixq +     strideq], m5 ; m4
+    movu    [pixq + 2 * strideq], m6 ; m5
+
+RET
 
 cglobal vvc_h_loop_filter_chroma_12, 8, 9, 12, pix, stride, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, pix0, q_len
     mov          pix0q, pixq
