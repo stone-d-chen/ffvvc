@@ -425,7 +425,6 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     sub           pix0q, src3strideq
     sub           pix0q, strideq
 
-    ; load all values at the same time
     movu             m0, [pix0q]               ;  p3
     movu             m1, [pix0q +     strideq] ;  p2
     movu             m2, [pix0q + 2 * strideq] ;  p1
@@ -554,7 +553,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
 
     ;----tc25 comparison---
 .tc25_comparison:
-    movq             m8, [tcq]   ; preprocess non shift so that I load more
+    movu             m8, [tcq]   ; preprocess non shift so that I load more
     ;psllw            m8, 10 - 10; 
     cmp           shiftd, 1
     je   .tc25_load_shift
@@ -573,7 +572,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     movu             m9, m8
     pmulld           m8, [pd_5]
     paddd            m8, [pd_1]
-    psrld            m8, 1          ; ((tc * 5 + 1) >> 1);
+    psrlw            m8, 1          ; ((tc * 5 + 1) >> 1);
 
     ; --- comparison
     psubw           m12, m3, m4     ;      p0 - q0
