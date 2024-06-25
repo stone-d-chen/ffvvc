@@ -11,6 +11,7 @@ pw_2 :           times 8 dw  2
 pw_m2:           times 8 dw -2
 pd_1 :           times 4 dd  1
 pd_5 :           times 4 dd  5
+pd_3 :           times 4 dd  3
 
 cextern pw_4
 cextern pw_8
@@ -438,6 +439,24 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
 
     paddw           m9, m10, m11  ; m9 spatial activity sum for all cols
 
+    pxor            m10, m10
+    movd            m11, [max_len_qq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, [pd_3];
+
+    cmp           shiftd, 1
+    je           .max_len_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+
+.max_len_shift
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+    movu             m11, m13
+
     ; ----  load beta   --------
     
     movu             m8, [betaq]  ; quad load 8 values for shift
@@ -470,7 +489,7 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
             
     paddw            m14, m9         ; d0 + d3, d0 + d3, d0 + d3, .....
     pcmpgtw          m15, m13, m14    ; beta > d0 + d3, d0 + d3 (next block)
-    movu             m11, m15         ; save filtering and or at the end
+    pand             m11, m15         ; save filtering and or at the end
                                       ; if all 1s then jump
                                       ; actually this is annoying
                                       ; with strong mask, then flop the directions
@@ -697,6 +716,24 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
 
     paddw           m9, m10, m11  ; m9 spatial activity sum for all cols
 
+    pxor            m10, m10
+    movd            m11, [max_len_qq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, [pd_3];
+
+    cmp           shiftd, 1
+    je           .max_len_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+
+.max_len_shift
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+    movu             m11, m13
+
     ; ----  load beta   --------
     
     movu             m8, [betaq]  ; quad load 8 values for shift
@@ -730,7 +767,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
             
     paddw            m14, m9         ; d0 + d3, d0 + d3, d0 + d3, .....
     pcmpgtw          m15, m13, m14    ; beta > d0 + d3, d0 + d3 (next block)
-    movu             m11, m15         ; save filtering and or at the end
+    pand             m11, m15         ; save filtering and or at the end
                                       ; if all 1s then jump
                                       ; actually this is annoying
                                       ; with strong mask, then flop the directions
@@ -941,7 +978,7 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     movu             m0, m2
     movu             m1, m2
 
-    ; for max_len = 3 we need to determine whether to decrease the length 
+    ; for max_len = 3 we need to determine whether to decrease the length
     psllw            m9, m2, 1   
     psubw           m10, m1, m9
     paddw           m10, m3 
@@ -953,6 +990,25 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     ABS1            m11, m13
 
     paddw           m9, m10, m11  ; m9 spatial activity sum for all cols
+
+
+    pxor            m10, m10
+    movd            m11, [max_len_qq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, [pd_3];
+
+    cmp           shiftd, 1
+    je           .max_len_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+
+.max_len_shift
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+    movu             m11, m13
 
     ; ----  load beta   --------
     
@@ -978,16 +1034,10 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     pshufhw          m13, m8,  q2200
     pshuflw          m13, m13, q2200
 
-    pshufhw         m14,  m9, q3210
-    pshufhw          m9,  m9, q2301                              
-    pshuflw         m14, m14, q3210
-    pshuflw          m9, m9,  q2301 
-
-.spatial_activity:
-            
+.spatial_activity:            
     paddw            m14, m9         ; d0 + d3, d0 + d3, d0 + d3, .....
     pcmpgtw          m15, m13, m14    ; beta > d0 + d3, d0 + d3 (next block)
-    movu             m11, m15         ; save filtering and or at the end
+    pand             m11, m15         ; save filtering and or at the end
                                       ; if all 1s then jump
                                       ; actually this is annoying
                                       ; with strong mask, then flop the directions
