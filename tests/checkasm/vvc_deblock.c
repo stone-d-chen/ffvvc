@@ -30,7 +30,7 @@
 static const uint32_t pixel_mask[3] = {0xffffffff, 0x03ff03ff, 0x0fff0fff};
 
 #define SIZEOF_PIXEL ((bit_depth + 7) / 8)
-#define BUF_SIZE 16 * 16
+#define BUF_SIZE 8 * 8
 
 #define randomize_buffers(buf0, buf1, size)               \
     do                                                    \
@@ -81,8 +81,8 @@ static void check_deblock_chroma_horizontal()
     int shift = 1;
     int beta[4] = {(rnd() & 81) + 8, (rnd() & 81) + 8, (rnd() & 81) + 8, (rnd() & 81) + 8 };
 
-    LOCAL_ALIGNED_32(uint16_t, buf0, [BUF_SIZE]);
-    LOCAL_ALIGNED_32(uint16_t, buf1, [BUF_SIZE]);
+    LOCAL_ALIGNED_32(uint8_t, buf0, [BUF_SIZE * 2]);
+    LOCAL_ALIGNED_32(uint8_t, buf1, [BUF_SIZE * 2]);
 
     VVCDSPContext context;
     int bit_depth;
@@ -97,10 +97,10 @@ static void check_deblock_chroma_horizontal()
     {
         int xstride = SIZEOF_PIXEL * 8; // bytes
         int ystride = 2;                // bytes
-        uint8_t *buf = buf0 + SIZEOF_PIXEL * 8 * 5;
+        uint8_t *buf = buf0 + xstride * 5;
 
         ff_vvc_dsp_init(&context, bit_depth);
-        if (check_func(context.lf.filter_chroma_asm[0], "vvc_h_loop_filter_chroma_%d", bit_depth))
+        if (check_func(context.lf.filter_chroma[0], "vvc_h_loop_filter_chroma_%d", bit_depth))
         {
             int i, j, b3, tc25, tc25diff, b3diff;
             randomize_buffers(buf0, buf1, BUF_SIZE);
@@ -142,13 +142,13 @@ static void check_deblock_chroma_horizontal()
             }
             memcpy(buf1, buf0, BUF_SIZE * 2);
 
-            call_ref(buf1 + 16 * 5, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
-            call_new(buf0 + 16 * 5, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
+            call_ref(buf1 + xstride * 5, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
+            call_new(buf0 + xstride * 5, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
 
             if (memcmp(buf0, buf1, BUF_SIZE * 2))
                 fail();
 
-            // bench_new(buf0 + 16 * 5, 8 * 5, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
+            bench_new(buf0 + xstride * 5, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
         }
     }
     report("chroma");
