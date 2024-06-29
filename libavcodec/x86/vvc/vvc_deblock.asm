@@ -644,17 +644,16 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
     CHROMA_DEBLOCK_BODY 10
 
     movq             m12, [pix0q + src3strideq] ;  p0
-    movq             m13, [pixq]                ;  q0
+    movq             m0, [pixq]                ;  q0
     movq             m14, [pixq +     strideq]  ;  q1
     movq             m15, [pixq + 2 * strideq]  ;  q2
 
     pxor             m11, m11
     punpcklbw        m12, m11
-    punpcklbw        m13, m11
+    punpcklbw        m0, m11
     punpcklbw        m14, m11
     punpcklbw        m15, m11
 
-    
 ; no_p
     pxor            m10, m10
     movd            m11, [no_pq]
@@ -697,11 +696,11 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
 .store_q:
     movu             m11, m13
 
-    MASKED_COPY   m13, m4
+    MASKED_COPY   m0, m4
     MASKED_COPY   m14, m5
     MASKED_COPY   m15, m6
 
-    packuswb         m12, m13
+    packuswb         m12, m0
     packuswb         m14, m15
 
     movh     [pix0q + src3strideq], m12
