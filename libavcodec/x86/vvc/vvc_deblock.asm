@@ -382,13 +382,12 @@ ALIGN 16
     pshufhw          m13, m11, q2222
     pshuflw          m13, m13, q0000
 
-.max_len_shift
+.max_len_shift:
     pshufhw          m13, m11, q2301
     pshuflw          m13, m13, q2301
     movu             m11, m13
 
     ; ----  load beta   --------
-    
     movu             m8, [betaq]  ; quad load 8 values for shift
 %if %1 > 8
     psllw            m8, %1 - 8   ; replace with bit_depth
@@ -649,16 +648,16 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
     sub                        pix0q, src3strideq
     sub                        pix0q, strideq
 
-    movq             m0, [pix0q]               ;  p3
-    movq             m1, [pix0q +     strideq] ;  p2
     movq             m2, [pix0q + 2 * strideq] ;  p1
+    movu             m0, m2                    ;  p3
+    movu             m1, m2                    ;  p2
     movq             m3, [pix0q + src3strideq] ;  p0
     movq             m4, [pixq]                ;  q0
     movq             m5, [pixq +     strideq]  ;  q1
     movq             m6, [pixq + 2 * strideq]  ;  q2
     movq             m7, [pixq + src3strideq]  ;  q3
 
-    pxor             m12, m12; zeros reg
+    pxor            m12, m12 ; zeros reg
     punpcklbw        m0, m12
     punpcklbw        m1, m12
     punpcklbw        m2, m12
@@ -668,20 +667,13 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
     punpcklbw        m6, m12
     punpcklbw        m7, m12
 
-    ; for horizontal, max_len_p == 1 and p3 and p2 are p1
-    movu             m0, m2
-    movu             m1, m2
-
     ONE_SIDE_CHROMA 8
 
     ; calculate weak
-.chroma_weak
+.chroma_weak:
     CHROMA_DEBLOCK_BODY 10
-    pxor           m12, m12; zeros reg
-
     packuswb         m3, m4
     packuswb         m5, m6
-
 
     movh     [pix0q + src3strideq], m3
     movhps                  [pixq], m3
@@ -694,29 +686,24 @@ RET
 ;     const int32_t *beta, const int32_t *tc, const uint8_t *no_p, const uint8_t *no_q,
 ;     const uint8_t *max_len_p, const uint8_t *max_len_q, int shift)
 cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
-
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
     sub           pix0q, src3strideq
     sub           pix0q, strideq
 
-    movu             m0, [pix0q]               ;  p3
-    movu             m1, [pix0q +     strideq] ;  p2
+    ; for horizontal, p3 and p2 are p1
     movu             m2, [pix0q + 2 * strideq] ;  p1
+    movu             m0, m2                    ;  p3
+    movu             m1, m2                    ;  p2
     movu             m3, [pix0q + src3strideq] ;  p0
     movu             m4, [pixq]                ;  q0
     movu             m5, [pixq +     strideq]  ;  q1
     movu             m6, [pixq + 2 * strideq]  ;  q2
     movu             m7, [pixq + src3strideq]  ;  q3
 
-    ; for horizontal, max_len_p == 1 and p3 and p2 are p1
-    movu             m0, m2
-    movu             m1, m2
-
     ONE_SIDE_CHROMA 10
  
-.chroma_weak
-    
+.chroma_weak:
     CHROMA_DEBLOCK_BODY 10
     pxor           m12, m12; zeros reg
 
@@ -738,22 +725,18 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     sub           pix0q, src3strideq
     sub           pix0q, strideq
 
-    movu             m0, [pix0q]               ;  p3
-    movu             m1, [pix0q +     strideq] ;  p2
     movu             m2, [pix0q + 2 * strideq] ;  p1
+    movu             m0, m2                    ;  p3
+    movu             m1, m2                    ;  p3
     movu             m3, [pix0q + src3strideq] ;  p0
     movu             m4, [pixq]                ;  q0
     movu             m5, [pixq +     strideq]  ;  q1
     movu             m6, [pixq + 2 * strideq]  ;  q2
     movu             m7, [pixq + src3strideq]  ;  q3
 
-    ; for horizontal, max_len_p == 1 and p3 and p2 are p1
-    movu             m0, m2
-    movu             m1, m2
-    
     ONE_SIDE_CHROMA 12
-.chroma_weak
     
+.chroma_weak:
     CHROMA_DEBLOCK_BODY 99999 ; doesn't do anything should unmacro it 
     pxor           m12, m12; zeros reg
 
