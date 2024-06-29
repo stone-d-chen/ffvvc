@@ -682,10 +682,52 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     CLIPW           m5, m12, [pw_pixel_max_10] ; p0
     CLIPW           m6, m12, [pw_pixel_max_10] ; p0
 
-    movu   [pix0q + src3strideq], m3
-    movu                  [pixq], m4
-    movu    [pixq +     strideq], m5 ; m4
-    movu    [pixq + 2 * strideq], m6 ; m5
+
+; no_p
+    pxor            m10, m10
+    movd            m11, [no_pq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, m10;
+
+    cmp           shiftd, 1
+    je           .no_p_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    jmp      .store_p
+.no_p_shift:
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+.store_p:
+    movu             m11, m13
+
+    MASKED_COPY   [pix0q + src3strideq], m3
+
+; no_q
+    pxor            m10, m10
+    movd            m11, [no_qq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, m10;
+
+    cmp           shiftd, 1
+    je           .no_q_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    jmp      .store_q
+.no_q_shift:
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+.store_q:
+    movu             m11, m13
+
+    MASKED_COPY                  [pixq], m4
+    MASKED_COPY    [pixq +     strideq], m5 ; m4
+    MASKED_COPY    [pixq + 2 * strideq], m6 ; m5
 
 RET
 
@@ -719,10 +761,51 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     CLIPW           m5, m12, [pw_pixel_max_12] ; p0
     CLIPW           m6, m12, [pw_pixel_max_12] ; p0
 
-    movu   [pix0q + src3strideq], m3
-    movu                  [pixq], m4
-    movu    [pixq +     strideq], m5 ; m4
-    movu    [pixq + 2 * strideq], m6 ; m5
+; no_p
+    pxor            m10, m10
+    movd            m11, [no_pq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, m10;
+
+    cmp           shiftd, 1
+    je           .no_p_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    jmp      .store_p
+.no_p_shift:
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+.store_p:
+    movu             m11, m13
+
+    MASKED_COPY   [pix0q + src3strideq], m3
+
+; no_q
+    pxor            m10, m10
+    movd            m11, [no_qq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, m10;
+
+    cmp           shiftd, 1
+    je           .no_q_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    jmp      .store_q
+.no_q_shift:
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+.store_q:
+    movu             m11, m13
+
+    MASKED_COPY                  [pixq], m4
+    MASKED_COPY    [pixq +     strideq], m5 ; m4
+    MASKED_COPY    [pixq + 2 * strideq], m6 ; m5
 RET
 %endmacro
 
