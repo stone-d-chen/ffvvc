@@ -578,10 +578,6 @@ ALIGN 16
     MASKED_COPY   m6, m14 ; m5
 %endmacro
 
-;-----------------------------------------------------------------------------
-; void ff_hevc_v_loop_filter_chroma(uint8_t *_pix, ptrdiff_t _stride, int32_t *tc,
-;                                   uint8_t *_no_p, uint8_t *_no_q);
-;-----------------------------------------------------------------------------
 %macro LOOP_FILTER_CHROMA 0
 cglobal vvc_v_loop_filter_chroma_8, 4, 6, 7, pix, stride, beta, tc, pix0, r3stride
     sub            pixq, 2
@@ -613,13 +609,6 @@ cglobal vvc_v_loop_filter_chroma_12, 4, 6, 7, pix, stride, beta, tc, pix0, r3str
     TRANSPOSE8x4W_STORE PASS8ROWS(pix0q, pixq, strideq, r3strideq), [pw_pixel_max_12]
     RET
 
-;        (uint8_t *pix, ptrdiff_t stride, const int32_t *beta, const int32_t *tc,
-;        const uint8_t *no_p, const uint8_t *no_q, const uint8_t *max_len_p, const uint8_t *max_len_q, int shift);
-
-;-----------------------------------------------------------------------------
-; void ff_hevc_h_loop_filter_chroma(uint8_t *_pix, ptrdiff_t _stride, int32_t *tc,
-;                                   uint8_t *_no_p, uint8_t *_no_q);
-;-----------------------------------------------------------------------------
 cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea     src3strideq, [3 * strideq]
     mov           pix0q, pixq
@@ -650,7 +639,8 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
 
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
-.chroma_weak:
+    
+    ; chroma weak
     CHROMA_DEBLOCK_BODY 10
     packuswb         m3, m4
     packuswb         m5, m6
@@ -662,9 +652,6 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
 
 RET
 
-; (uint8_t *pix, ptrdiff_t stride,
-;     const int32_t *beta, const int32_t *tc, const uint8_t *no_p, const uint8_t *no_q,
-;     const uint8_t *max_len_p, const uint8_t *max_len_q, int shift)
 cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
@@ -686,10 +673,10 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
 
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
-.chroma_weak:
+    
+    ; chroma weak
     CHROMA_DEBLOCK_BODY 10
-    pxor           m12, m12; zeros reg
-
+    pxor           m12, m12
     CLIPW           m3, m12, [pw_pixel_max_10] ; p0
     CLIPW           m4, m12, [pw_pixel_max_10] ; q0
     CLIPW           m5, m12, [pw_pixel_max_10] ; p0
@@ -722,7 +709,8 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
-.chroma_weak:
+    
+    ; chroma_weak
     CHROMA_DEBLOCK_BODY 99999 ; doesn't do anything should unmacro it 
     pxor           m12, m12; zeros reg
 
