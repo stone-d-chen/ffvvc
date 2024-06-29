@@ -642,14 +642,72 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
     
     ; chroma weak
     CHROMA_DEBLOCK_BODY 10
-    packuswb         m3, m4
-    packuswb         m5, m6
 
-    movh     [pix0q + src3strideq], m3
-    movhps                  [pixq], m3
-    movh      [pixq +     strideq], m5 ; m4
-    movhps    [pixq + 2 * strideq], m5 ; m5
+    movq             m12, [pix0q + src3strideq] ;  p0
+    movq             m13, [pixq]                ;  q0
+    movq             m14, [pixq +     strideq]  ;  q1
+    movq             m15, [pixq + 2 * strideq]  ;  q2
 
+    pxor             m11, m11
+    punpcklbw        m12, m11
+    punpcklbw        m13, m11
+    punpcklbw        m14, m11
+    punpcklbw        m15, m11
+
+    
+; no_p
+    pxor            m10, m10
+    movd            m11, [no_pq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, m10;
+
+    cmp           shiftd, 1
+    je           .no_p_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    jmp      .store_p
+.no_p_shift:
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+.store_p:
+    movu             m11, m13
+
+    MASKED_COPY   m12, m3
+
+; no_q
+    pxor            m10, m10
+    movd            m11, [no_qq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, m10;
+
+    cmp           shiftd, 1
+    je           .no_q_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    jmp      .store_q
+.no_q_shift:
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+.store_q:
+    movu             m11, m13
+
+    MASKED_COPY   m13, m4
+    MASKED_COPY   m14, m5
+    MASKED_COPY   m15, m6
+
+    packuswb         m12, m13
+    packuswb         m14, m15
+
+    movh     [pix0q + src3strideq], m12
+    movhps                  [pixq], m12
+    movh      [pixq +     strideq], m14 ; m4
+    movhps    [pixq + 2 * strideq], m14 ; m5
 RET
 
 cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
