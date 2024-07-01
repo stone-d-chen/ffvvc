@@ -9,8 +9,8 @@ cextern pw_1023
 pw_pixel_max_12: times 8 dw ((1 << 12)-1)
 pw_2 :           times 8 dw  2
 pw_m2:           times 8 dw -2
-pd_1 :           times 4 dd  1
-pd_5 :           times 4 dd  5
+pw_1 :           times 8 dw  1
+pw_5 :           times 8 dw  5
 pd_3 :           times 4 dd  3
 
 cextern pw_4
@@ -275,7 +275,7 @@ ALIGN 16
 
 %macro CLIP_RESTORE 4  ; toclip, value, -tc, +tc
     paddw           %3, %2
-    paddd           %4, %2
+    paddw           %4, %2
     CLIPW           %1, %3, %4
     psubw           %3, %2
     psubw           %4, %2
@@ -493,8 +493,8 @@ ALIGN 16
 
 .tc25_calculation:
     movu             m9, m8
-    pmulld           m8, [pd_5]
-    paddd            m8, [pd_1]
+    pmullw           m8, [pw_5]
+    paddw            m8, [pw_1]
     psrlw            m8, 1          ; ((tc * 5 + 1) >> 1);
 
     psubw           m12, m3, m4     ;      p0 - q0
@@ -536,17 +536,17 @@ ALIGN 16
     paddw          m0, [pw_4] ;      p0 + q0 + q1 + q2 + 4
     paddw          m0, m2     ; p1 + p0 + q0 + q1 + q2 + 4
     movu           m15, m0 
-    paddw          m0, m2
-    paddw          m0, m2
-    paddw          m0, m3
+    paddw          m0, m2     ; + p1
+    paddw          m0, m2     ; + p1
+    paddw          m0, m3     ; + p0
     psrlw          m0, 3
 
     CLIP_RESTORE   m0, m3, m8, m9
 
     ; q0
-    paddw          m12, m2, m15
-    paddw          m12, m4   ;q0
-    paddw          m12, m7   ;q3
+    paddw          m12, m2, m15 ; + p1
+    paddw          m12, m4      ;  q0
+    paddw          m12, m7      ; q3
 
     psrlw          m12, 3
 
@@ -715,10 +715,9 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     sub           pix0q, src3strideq
     sub           pix0q, strideq
 
-    ; for horizontal, p3 and p2 are p1
     movu             m2, [pix0q + 2 * strideq] ;  p1
     movu             m0, m2                    ;  p3
-    movu             m1, m2                    ;  p2
+    movu             m1, m2                    ;  p3
     movu             m3, [pix0q + src3strideq] ;  p0
     movu             m4, [pixq]                ;  q0
     movu             m5, [pixq +     strideq]  ;  q1
