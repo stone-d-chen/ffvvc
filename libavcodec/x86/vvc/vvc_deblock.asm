@@ -13,6 +13,7 @@ pw_1 :           times 8 dw  1
 pw_5 :           times 8 dw  5
 pd_3 :           times 4 dd  3
 
+
 cextern pw_4
 cextern pw_8
 cextern pw_m1
@@ -340,12 +341,12 @@ ALIGN 16
     psrlw         m15, 3
     CLIP_RESTORE  m15, m6, m8, m9
 
-    MASKED_COPY m3, m12 ; p0 
-    MASKED_COPY m2, m13 ; p1
-    MASKED_COPY m1, m14 ; p2
     MASKED_COPY m4, m0  ; q0
     MASKED_COPY m5, m1  ; q1
     MASKED_COPY m6, m15 ; q2
+    MASKED_COPY m3, m12 ; p0 
+    MASKED_COPY m2, m13 ; p1
+    MASKED_COPY m1, m14 ; p2
 %endmacro
 
 ; m11 strong mask, m8/m9 -tc, tc
@@ -709,7 +710,7 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 13, 16, pix, stride, beta, tc, no_p, no_q
     movhps    [pixq + 2 * strideq], m14 ; m5
 RET
 
-cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
+cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
     sub           pix0q, src3strideq
@@ -725,6 +726,23 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     movu             m7, [pixq + src3strideq]  ;  q3
 
     SPATIAL_ACTIVITY 10
+    sub rsp, 16
+    movu [rsp], m11
+
+    pxor            m10, m10
+    movd            m11, [max_len_pq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+    pcmpgtd         m11, [pd_3]
+
+    pshufhw          m13, m11, q2301
+    pshuflw          m13, m13, q2301
+    movu             m11, m13
+    pand             m11, [rsp]
+    
+    STRONG_CHROMA
+
+    movu   m11, [rsp]
     ONE_SIDE_CHROMA
 
     pcmpeqd  m12, m12, m12
@@ -784,7 +802,8 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     MASKED_COPY                  [pixq], m4
     MASKED_COPY    [pixq +     strideq], m5 ; m4
     MASKED_COPY    [pixq + 2 * strideq], m6 ; m5
-
+    
+    add rsp, 16
 RET
 
 cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
