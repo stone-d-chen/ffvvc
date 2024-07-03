@@ -291,54 +291,55 @@ ALIGN 16
     paddw         m12, m3
     paddw         m12, m4
     paddw         m12, [pw_4]
-    movu          m15, m12      ; p3 +  p2 + p1 +  p0 +   q0 + 4
+    movu          m15, m12      ; p3 +  p2 + p1 +  p0 + q0 + 4
     paddw         m12, m3
     paddw         m12, m5       ; q1
     paddw         m12, m6       ; q2
-    psrlw         m12, 3
+    psraw         m12, 3
     CLIP_RESTORE  m12, m3, m8, m9
     
     ; p1
-    paddw        m13, m15, m10
-    paddw        m13, m2
-    paddw        m13, m5
-    psrlw         m0, 3
+    paddw        m13, m15, m0 ; + p3
+    paddw        m13, m2      ; + p1
+    paddw        m13, m5      ; + q1
+    psraw         m0, 3
     CLIP_RESTORE  m13, m2, m8, m9
 
     ; p2
-    psllw         m14, m15, 1
-    paddw         m14, m10
-    paddw         m14, m1
+    psllw         m14, m0, 1 ; 2*p3
+    paddw         m14, m0    ; + p3
+    paddw         m14, m1    ; + p2
+    psraw         m14, 3
     CLIP_RESTORE  m14, m1, m8, m9
 
     ; q0
     ; clobber m0 / P3 - not used anymore
-    paddw         m0, m3, m4
-    paddw         m0, m5
-    paddw         m0, m6
-    paddw         m0, m7
+    paddw         m0, m3, m4    ; p0 + q0
+    paddw         m0, m5        ; + q1
+    paddw         m0, m6        ; + q2
+    paddw         m0, m7        ; + q3
     paddw         m0, [pw_4]
-    movu          m15, m0  ; p0 + q0 + q1 + q2 + q3+ 4
-    paddw         m0, m1   ; p2 free
-    paddw         m0, m2
-    paddw         m0, m3
-    psrlw         m0, 3
+    movu          m15, m0       ; p0 + q0 + q1 + q2 + q3 + 4
+    paddw         m0, m1        ; + p2  -- p2 is unused after this point
+    paddw         m0, m2        ; + p1
+    paddw         m0, m4        ; + q0
+    psraw         m0, 3
     CLIP_RESTORE  m0, m4, m8, m9
 
     ; q1
     ; clobber m1 / P2 - last use was q0 calc
-    paddw         m1, m2, m15; p1 + ...
-    paddw         m1, m5
-    paddw         m1, m7
-    psrlw         m1, 3
+    paddw         m1, m2, m15; p0 + ...   + p1
+    paddw         m1, m4     ; + q1
+    paddw         m1, m7     ; + q3
+    psraw         m1, 3
     CLIP_RESTORE  m1, m5, m8, m9
 
     ; q2
     ; clobber m15 - sum is fully used
-    paddw         m15, m7
-    paddw         m15, m7
-    paddw         m15, m6
-    psrlw         m15, 3
+    paddw         m15, m7  ; + q3
+    paddw         m15, m7  ; + q3
+    paddw         m15, m6  ; + q2
+    psraw         m15, 3 
     CLIP_RESTORE  m15, m6, m8, m9
 
     MASKED_COPY m4, m0  ; q0
@@ -733,7 +734,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     movd            m11, [max_len_pq]
     punpcklbw       m11, m11, m10
     punpcklwd       m11, m11, m10
-    pcmpgtd         m11, [pd_3]
+    pcmpeqd         m11, [pd_3]
 
     pshufhw          m13, m11, q2301
     pshuflw          m13, m13, q2301
@@ -742,15 +743,25 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     
     STRONG_CHROMA
 
-    movu   m11, [rsp]
+    MASKED_COPY   [pix0q +     strideq], m1
+
+    pcmpeqd  m12, m12, m12
+    pxor     m11, m11, m12
+    pand     m11, [rsp]
+    
+
     ONE_SIDE_CHROMA
 
+    movu     m11, [rsp]
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
     
     ; chroma weak
     CHROMA_DEBLOCK_BODY 10
     pxor           m12, m12
+
+    CLIPW           m1, m12, [pw_pixel_max_10] ; p0
+    CLIPW           m2, m12, [pw_pixel_max_10] ; p0
     CLIPW           m3, m12, [pw_pixel_max_10] ; p0
     CLIPW           m4, m12, [pw_pixel_max_10] ; q0
     CLIPW           m5, m12, [pw_pixel_max_10] ; p0
@@ -776,6 +787,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     pshuflw          m13, m13, q2301
 .store_p:
     movu             m11, m13
+
 
     MASKED_COPY   [pix0q + src3strideq], m3
 
