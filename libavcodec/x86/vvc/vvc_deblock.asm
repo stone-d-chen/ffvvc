@@ -731,9 +731,9 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     punpcklqdq       m11, m11, m11
     pshufhw          m13, m11, q2222
     pshuflw          m13, m13, q0000
+    movu             m11, m13
 
 .max_len_pq_spatial_shift:
-    movu             m11, m13
     MASKED_COPY      m0, m2
     MASKED_COPY      m1, m2
     movu             m2, [pix0q + 2 * strideq]
@@ -750,13 +750,19 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     movd            m11, [max_len_pq]
     punpcklbw       m11, m11, m10
     punpcklwd       m11, m11, m10
+
     pcmpeqd         m11, [pd_3]
 
-    pshufhw          m13, m11, q2301
-    pshuflw          m13, m13, q2301
+
+    cmp           shiftd, 1
+    je           .strong_chroma
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
     movu             m11, m13
+
+.strong_chroma:
     pand             m11, [rsp]
-    
     STRONG_CHROMA
 
 
