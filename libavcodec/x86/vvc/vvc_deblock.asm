@@ -371,12 +371,13 @@ ALIGN 16
     punpcklqdq       m11, m11, m11
     pshufhw          m13, m11, q2222
     pshuflw          m13, m13, q0000
-
+    jmp           .load_beta
 .max_len_shift:
     pshufhw          m13, m11, q2301
     pshuflw          m13, m13, q2301
-    movu             m11, m13
 
+.load_beta:
+    movu             m11, m13
     ; Load beta
     movu             m8, [betaq]  ; quad load 8 values for shift
 %if %1 > 8
@@ -734,8 +735,10 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     movu             m11, m13
 
 .max_len_pq_spatial_shift:
-    MASKED_COPY      m0, m2
-    MASKED_COPY      m1, m2
+    movu             m12, m2
+    movu             m13, m2
+    MASKED_COPY      m0, m12
+    MASKED_COPY      m1, m13
     movu             m2, [pix0q + 2 * strideq]
 
     SPATIAL_ACTIVITY 10
@@ -764,8 +767,6 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
 .strong_chroma:
     pand             m11, [rsp]
     STRONG_CHROMA
-
-
 
     MASKED_COPY m4, m0  ; q0
     MASKED_COPY m5, m1  ; q1
