@@ -341,11 +341,39 @@ ALIGN 16
     paddw         m15, m6  ; + q2
     psraw         m15, 3 
     CLIP_RESTORE  m15, m6, m8, m9
+
+    MASKED_COPY m4, m0  ; q0
+    MASKED_COPY m5, m1  ; q1
+    MASKED_COPY m6, m15 ; q2
+    MASKED_COPY m3, m12 ; p0 
+    MASKED_COPY m2, m13 ; p1
+    MASKED_COPY m1, m14 ; p2
 %endmacro
 
 ; m11 strong mask, m8/m9 -tc, tc
 ; p3 to q3 in m0, m7 - clobbers p3
 %macro SPATIAL_ACTIVITY 1
+    pxor            m10, m10
+    movd            m11, [max_len_pq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, [pd_1]
+
+    cmp           shiftd, 1
+    je           .max_len_pq_spatial_shift
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    movu             m11, m13
+
+.max_len_pq_spatial_shift:
+    movu             m12, m2
+    movu             m13, m2
+    MASKED_COPY      m0, m12
+    MASKED_COPY      m1, m13
+    movu             m2, [pix0q + 2 * strideq]
+
     psllw            m9, m2, 1   
     psubw           m10, m1, m9
     paddw           m10, m3 
@@ -720,26 +748,6 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     movu             m6, [pixq + 2 * strideq]  ;  q2
     movu             m7, [pixq + src3strideq]  ;  q3
     
-    pxor            m10, m10
-    movd            m11, [max_len_pq]
-    punpcklbw       m11, m11, m10
-    punpcklwd       m11, m11, m10
-
-    pcmpeqd         m11, [pd_1]
-
-    cmp           shiftd, 1
-    je           .max_len_pq_spatial_shift
-    punpcklqdq       m11, m11, m11
-    pshufhw          m13, m11, q2222
-    pshuflw          m13, m13, q0000
-    movu             m11, m13
-
-.max_len_pq_spatial_shift:
-    movu             m12, m2
-    movu             m13, m2
-    MASKED_COPY      m0, m12
-    MASKED_COPY      m1, m13
-    movu             m2, [pix0q + 2 * strideq]
 
     SPATIAL_ACTIVITY 10
 
@@ -768,16 +776,14 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     pand             m11, [rsp]
     STRONG_CHROMA
 
-    MASKED_COPY m4, m0  ; q0
-    MASKED_COPY m5, m1  ; q1
-    MASKED_COPY m6, m15 ; q2
-    MASKED_COPY m3, m12 ; p0 
-    MASKED_COPY m2, m13 ; p1
-    MASKED_COPY m1, m14 ; p2
-
+    ; store strong changes ... will need to adapt to no_p
+    pxor           m12, m12
+    CLIPW           m1, m12, [pw_pixel_max_10] ; p0
+    CLIPW           m2, m12, [pw_pixel_max_10] ; p0
     MASKED_COPY   [pix0q +     strideq], m1
     MASKED_COPY   [pix0q +   2*strideq], m2
 
+    ; invert mask & all strong mask, to get only one-sided mask
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
     pand     m11, [rsp]
@@ -791,14 +797,10 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     ; chroma weak
     CHROMA_DEBLOCK_BODY 10
     pxor           m12, m12
-
-    CLIPW           m1, m12, [pw_pixel_max_10] ; p0
-    CLIPW           m2, m12, [pw_pixel_max_10] ; p0
     CLIPW           m3, m12, [pw_pixel_max_10] ; p0
     CLIPW           m4, m12, [pw_pixel_max_10] ; q0
     CLIPW           m5, m12, [pw_pixel_max_10] ; p0
     CLIPW           m6, m12, [pw_pixel_max_10] ; p0
-
 
 ; no_p
     pxor            m10, m10
@@ -844,39 +846,74 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 13, 16, 16, pix, stride, beta, tc, no_p,
     movu             m11, m13
 
     MASKED_COPY                  [pixq], m4
-    MASKED_COPY    [pixq +     strideq], m5 ; m4
-    MASKED_COPY    [pixq + 2 * strideq], m6 ; m5
+    MASKED_COPY    [pixq +     strideq], m5 ; 
+    MASKED_COPY    [pixq + 2 * strideq], m6 ; 
     
     add rsp, 16
 RET
 
-cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
+cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
     sub           pix0q, src3strideq
     sub           pix0q, strideq
 
+    movu             m0, [pix0q]               ;  p3
+    movu             m1, [pix0q + strideq]     ;  p2
     movu             m2, [pix0q + 2 * strideq] ;  p1
-    movu             m0, m2                    ;  p3
-    movu             m1, m2                    ;  p3
     movu             m3, [pix0q + src3strideq] ;  p0
     movu             m4, [pixq]                ;  q0
     movu             m5, [pixq +     strideq]  ;  q1
     movu             m6, [pixq + 2 * strideq]  ;  q2
     movu             m7, [pixq + src3strideq]  ;  q3
-
+    
     SPATIAL_ACTIVITY 12
 
+    movu             m0, [pix0q]                    ;  p3
+    movu             m1, [pix0q + strideq]                    ;  p3
+
+    sub rsp, 16
+    movu [rsp], m11
+
+    pxor            m10, m10
+    movd            m11, [max_len_pq]
+    punpcklbw       m11, m11, m10
+    punpcklwd       m11, m11, m10
+
+    pcmpeqd         m11, [pd_3]
+
+    cmp           shiftd, 1
+    je           .strong_chroma
+    punpcklqdq       m11, m11, m11
+    pshufhw          m13, m11, q2222
+    pshuflw          m13, m13, q0000
+    movu             m11, m13
+
+.strong_chroma:
+    pand             m11, [rsp]
+    STRONG_CHROMA
+
+    ; store strong changes ... will need to adapt to no_p
+    pxor           m12, m12
+    CLIPW           m1, m12, [pw_pixel_max_12] ; p0
+    CLIPW           m2, m12, [pw_pixel_max_12] ; p0
+    MASKED_COPY   [pix0q +     strideq], m1
+    MASKED_COPY   [pix0q +   2*strideq], m2
+
+    ; invert mask & all strong mask, to get only one-sided mask
+    pcmpeqd  m12, m12, m12
+    pxor     m11, m11, m12
+    pand     m11, [rsp]
 
     ONE_SIDE_CHROMA
-    
+
+    movu     m11, [rsp]
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
     
-    ; chroma_weak
-    CHROMA_DEBLOCK_BODY 99999 ; doesn't do anything should unmacro it 
-    pxor           m12, m12; zeros reg
-
+    ; chroma weak
+    CHROMA_DEBLOCK_BODY 10
+    pxor           m12, m12
     CLIPW           m3, m12, [pw_pixel_max_12] ; p0
     CLIPW           m4, m12, [pw_pixel_max_12] ; q0
     CLIPW           m5, m12, [pw_pixel_max_12] ; p0
@@ -902,6 +939,7 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
 .store_p:
     movu             m11, m13
 
+
     MASKED_COPY   [pix0q + src3strideq], m3
 
 ; no_q
@@ -925,8 +963,10 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 13, 16, pix, stride, beta, tc, no_p, no_
     movu             m11, m13
 
     MASKED_COPY                  [pixq], m4
-    MASKED_COPY    [pixq +     strideq], m5 ; m4
-    MASKED_COPY    [pixq + 2 * strideq], m6 ; m5
+    MASKED_COPY    [pixq +     strideq], m5 ; 
+    MASKED_COPY    [pixq + 2 * strideq], m6 ; 
+    
+    add rsp, 16
 RET
 %endmacro
 
