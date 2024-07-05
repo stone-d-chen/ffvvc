@@ -373,6 +373,10 @@ ALIGN 16
     MASKED_COPY      m0, m12
     MASKED_COPY      m1, m13
     movu             m2, [pix0q + 2 * strideq]
+%if %1 == 8
+    pxor            m12, m12 ; zeros reg
+    punpcklbw        m2, m12
+%endif
 
     psllw            m9, m2, 1   
     psubw           m10, m1, m9
