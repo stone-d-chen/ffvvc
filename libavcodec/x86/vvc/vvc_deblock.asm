@@ -50,25 +50,7 @@ SECTION .text
 
 ALIGN 16
 %macro WEAK_CHROMA 1
-    psubw            m12, m4, m3 ; q0 - p0
-    psubw            m13, m2, m5 ; p1 - q1
-    psllw            m12, 2      ; << 2
-    paddw            m13, m12    ;
-
-    paddw            m13, [pw_4] ; +4
-    psraw            m13, 3      ; >> 3
-
-    CLIPW            m13, m8, m9
-    paddw            m14, m3, m13 ; p0 + delta0
-    psubw            m15, m4, m13 ; q0 - delta0
-
-    movu             m12, m11
-    pand             m11, [rsp + 16]
-    MASKED_COPY       m3, m14
-
-    movu             m11, m12
-    pand             m11, [rsp]
-    MASKED_COPY       m4, m15
+    H2656_CHROMA_DEBLOCK %1, vvc, m3, m4, m12, m5, m2, m13, m9, m14, m15, m8, m9
 %endmacro
 
 %macro CLIP_RESTORE 4  ; toclip, value, -tc, +tc
@@ -509,6 +491,14 @@ ALIGN 16
     je              .end_weak_chroma
 
     WEAK_CHROMA     %1
+
+    movu             m12, m11
+    pand             m11, [rsp + 16]
+    MASKED_COPY       m3, m14   ; need to mask the copy since we can have a mix of weak + others
+
+    movu             m11, m12
+    pand             m11, [rsp]
+    MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
 .end_weak_chroma:
     add rsp, 112
 %endmacro
