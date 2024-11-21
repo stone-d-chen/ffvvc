@@ -46,34 +46,8 @@ INIT_XMM sse2
 
 ALIGN 16
 ; input in m0 ... m3 and tcs in r2. Output in m1 and m2
-%macro CHROMA_DEBLOCK_BODY 1
-    psubw            m4, m2, m1; q0 - p0
-    psubw            m5, m0, m3; p1 - q1
-    psllw            m4, 2; << 2
-    paddw            m5, m4;
-
-    ;tc calculations
-    movq             m6, [tcq]; tc0
-    punpcklwd        m6, m6
-    pshufd           m6, m6, 0xA0; tc0, tc1
-%if cpuflag(ssse3)
-    psignw           m4, m6, [pw_m1]; -tc0, -tc1
-%else
-    pmullw           m4, m6, [pw_m1]; -tc0, -tc1
-%endif
-    ;end tc calculations
-
-    paddw            m5, [pw_4]; +4
-    psraw            m5, 3; >> 3
-
-%if %1 > 8
-    psllw            m4, %1-8; << (BIT_DEPTH - 8)
-    psllw            m6, %1-8; << (BIT_DEPTH - 8)
-%endif
-    pmaxsw           m5, m4
-    pminsw           m5, m6
-    paddw            m1, m5; p0 + delta0
-    psubw            m2, m5; q0 - delta0
+%macro CHROMA_DEBLOCK_BODY 1    ; last four parameters (m0) unused by hevc
+    H2656_CHROMA_DEBLOCK %1, hevc, m1, m2, m4, m3, m0, m5, m6, m0, m0, m0, m0
 %endmacro
 
 ;-----------------------------------------------------------------------------
