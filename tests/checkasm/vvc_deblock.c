@@ -338,7 +338,7 @@ static void check_deblock_chroma(const VVCDSPContext *h, int bit_depth)
             if (check_func(h->lf.filter_chroma[0], "vvc_h_loop_filter_chroma_%d_%s_%s", bit_depth, types[type], shifts[shift])) {
                 int xstride = 16;            // bytes
                 int ystride = SIZEOF_PIXEL;  // bytes
-                for(int spatial_strong = 0; spatial_strong < 1; ++spatial_strong) {
+                for(int spatial_strong = 0; spatial_strong <= 1; ++spatial_strong) {
                     randomize_chroma_buffers(type, shift, spatial_strong, bit_depth, max_len_p, max_len_q, beta, tc, buf0, buf1, xstride, ystride);
                     call_ref(buf0 + xstride * 4, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
                     call_new(buf1 + xstride * 4, xstride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
@@ -351,7 +351,7 @@ static void check_deblock_chroma(const VVCDSPContext *h, int bit_depth)
             if (check_func(h->lf.filter_chroma[1], "vvc_v_loop_filter_chroma_%d_%s_%s", bit_depth, types[type], shifts[shift])) {
                 int ystride = 16;            // bytes
                 int xstride = SIZEOF_PIXEL;  // bytes
-                for(int spatial_strong = 0; spatial_strong < 1; ++spatial_strong) {
+                for(int spatial_strong = 0; spatial_strong <= 1; ++spatial_strong) {
                     randomize_chroma_buffers(type, shift, spatial_strong, bit_depth, max_len_p, max_len_q, beta, tc, buf0, buf1, xstride, ystride);
                     call_ref(buf0 + xstride * 4, ystride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
                     call_new(buf1 + xstride * 4, ystride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift);
