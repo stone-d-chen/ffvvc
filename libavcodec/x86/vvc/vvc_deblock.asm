@@ -141,8 +141,8 @@ ALIGN 16
 %endmacro
 
 ; m11 strong mask, m8/m9 -tc, tc
-%macro SPATIAL_ACTIVITY 2
-%if %2 == 0
+%macro SPATIAL_ACTIVITY 1
+
     ; if p == 1, then p3, p2 are p1 for spatial calc
     pxor              m10, m10
     movd              m11, [max_len_pq]
@@ -160,7 +160,7 @@ ALIGN 16
     movu              m13, m2
     MASKED_COPY        m0, m12
     MASKED_COPY        m1, m13
-%endif
+
 ; load tc
 .load_tc:
     movu               m8, [tcq]
@@ -312,10 +312,8 @@ ALIGN 16
     movu                      m9, [tcptrq]
     psignw                    m8, m9, [pw_m1];
 
-%if %2 == 0
     movu             m0, [rsp + 48]
     movu             m1, [rsp + 64]
-%endif
 
 %endmacro
 
@@ -372,7 +370,7 @@ ALIGN 16
 %endmacro
 
 ; CHROMA_DEBLOCK_BODY(bit_depth)
-%macro CHROMA_DEBLOCK_BODY 2
+%macro CHROMA_DEBLOCK_BODY 1
     sub  rsp, 16
     mov spatial_maskq, rsp
     sub rsp, 16
@@ -438,7 +436,7 @@ ALIGN 16
     movmskps         no_qq, m13
 ; end q
 
-    SPATIAL_ACTIVITY %1, %2
+    SPATIAL_ACTIVITY %1
 
     movmskps         r14, m11
     cmp              r14, 0
@@ -463,7 +461,6 @@ ALIGN 16
 
 .end_strong_chroma:
 
-%if %2 == 0
 .one_side_chroma:
     ; invert mask & all strong mask, to get only one-sided mask
     pcmpeqd  m12, m12, m12
@@ -477,7 +474,6 @@ ALIGN 16
     movu     [rsp + 32], m11
     ONE_SIDE_CHROMA %1
 .end_one_side_chroma:
-%endif
 
 .chroma_weak:
     movu     m11, [spatial_maskq]
@@ -510,7 +506,7 @@ cglobal vvc_v_loop_filter_chroma_8, 9, 15, 16, 112, pix, stride, beta, tc, no_p,
     mov           pix0q, pixq
     add            pixq, r3strideq
     TRANSPOSE8x8B_LOAD  PASS8ROWS(pix0q, pixq, strideq, r3strideq)
-    CHROMA_DEBLOCK_BODY 8, 1
+    CHROMA_DEBLOCK_BODY 8
     TRANSPOSE8x8B_STORE PASS8ROWS(pix0q, pixq, strideq, r3strideq)
     RET
 
@@ -520,7 +516,7 @@ cglobal vvc_v_loop_filter_chroma_10, 9, 15, 16, 112, pix, stride, beta, tc, no_p
     mov           pix0q, pixq
     add            pixq, r3strideq
     TRANSPOSE8x8W_LOAD  PASS8ROWS(pix0q, pixq, strideq, r3strideq)
-    CHROMA_DEBLOCK_BODY 10, 1
+    CHROMA_DEBLOCK_BODY 10
     TRANSPOSE8x8W_STORE PASS8ROWS(pix0q, pixq, strideq, r3strideq), [pw_pixel_max_10]
     RET
 
@@ -530,7 +526,7 @@ cglobal vvc_v_loop_filter_chroma_12, 9, 15, 16, 112, pix, stride, beta, tc, no_p
     mov           pix0q, pixq
     add            pixq, r3strideq
     TRANSPOSE8x8W_LOAD  PASS8ROWS(pix0q, pixq, strideq, r3strideq)
-    CHROMA_DEBLOCK_BODY 12, 1
+    CHROMA_DEBLOCK_BODY 12
     TRANSPOSE8x8W_STORE PASS8ROWS(pix0q, pixq, strideq, r3strideq), [pw_pixel_max_12]
     RET
 
@@ -559,7 +555,7 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 15, 16, 112, pix, stride, beta, tc, no_p,
     punpcklbw        m6, m12
     punpcklbw        m7, m12
 
-    CHROMA_DEBLOCK_BODY 8, 0
+    CHROMA_DEBLOCK_BODY 8
 
     packuswb          m0, m1
     packuswb          m2, m3
@@ -592,7 +588,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 15, 16, 112, pix, stride, beta, tc, no_p
     movu             m6, [pixq + 2 * strideq]  ;  q2
     movu             m7, [pixq + src3strideq]  ;  q3
 
-    CHROMA_DEBLOCK_BODY 10, 0
+    CHROMA_DEBLOCK_BODY 10
 
     pxor           m12, m12
     CLIPW           m1, m12, [pw_pixel_max_10] ; p2
@@ -629,7 +625,7 @@ cglobal vvc_h_loop_filter_chroma_12, 9, 15, 16, 112, pix, stride, beta, tc, no_p
     movu             m6, [pixq + 2 * strideq]  ;  q2
     movu             m7, [pixq + src3strideq]  ;  q3
 
-    CHROMA_DEBLOCK_BODY 12, 0
+    CHROMA_DEBLOCK_BODY 12
 
     pxor           m12, m12
     CLIPW           m1, m12, [pw_pixel_max_12] ; p2
