@@ -49,6 +49,29 @@ SECTION .text
 %%end:
 %endmacro
 
+%macro LOAD_TC 2
+; load tc
+%%load_tc:
+    movu               %2, [tcq]
+%if %1 == 8
+    paddw              %2, [pw_2]
+    psrlw              %2, 2
+%elif %1 == 12
+    psllw              %2, %1 - 10;
+%endif
+    cmp             shiftd, 1
+    je      %%tc_load_shift
+
+    punpcklqdq          %2, %2, %2
+    pshufhw             %2, %2, q2222
+    pshuflw             %2, %2, q0000
+    jmp       %%end_tc_load
+%%tc_load_shift:
+    pshufhw             %2, %2,  q2200
+    pshuflw             %2, %2,  q2200
+%%end_tc_load:
+%endmacro
+
 ALIGN 16
 %macro WEAK_CHROMA 0
     H2656_CHROMA_DEBLOCK m14, m15, m2, m3, m4, m5, m8, m9, m12, m13
@@ -153,27 +176,7 @@ ALIGN 16
     MASKED_COPY        m0, m12
     MASKED_COPY        m1, m13
 
-; load tc
-.load_tc:
-    movu               m8, [tcq]
-%if %1 == 8
-    paddw              m8, [pw_2]
-    psrlw              m8, 2
-%elif %1 == 12
-    psllw              m8, %1 - 10;
-%endif
-    cmp             shiftd, 1
-    je      .tc_load_shift
-
-    punpcklqdq          m8, m8, m8
-    pshufhw             m8, m8, q2222
-    pshuflw             m8, m8, q0000
-    jmp       .end_tc_load
-.tc_load_shift:
-    pshufhw             m8, m8,  q2200
-    pshuflw             m8, m8,  q2200
-.end_tc_load:
-    movu          [tcptrq], m8
+    LOAD_TC %1, m8
 
     ; if max_len_q == 3, compute spatial activity to determine final length
     pxor               m10, m10
@@ -301,7 +304,7 @@ ALIGN 16
 
 .prep_clipping_masks:
     movu         [spatial_maskq], m11
-    movu                      m9, [tcptrq]
+    LOAD_TC                   %1, m9
     psignw                    m8, m9, [pw_m1];
 
 %if %1 == 8
@@ -354,8 +357,6 @@ ALIGN 16
 %macro CHROMA_DEBLOCK_BODY 1
     sub  rsp, 16
     mov spatial_maskq, rsp
-    sub rsp, 16
-    mov tcptrq, rsp
 
     SPATIAL_ACTIVITY %1
 
@@ -470,7 +471,9 @@ ALIGN 16
     movu     m11, [spatial_maskq]
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
-    movu             m9, [tcptrq]
+
+    LOAD_TC %1, m9
+
     psignw           m8, m9, [pw_m1];
 
     movmskps         r14, m11
@@ -500,7 +503,7 @@ ALIGN 16
 %endif
     MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
 .end_weak_chroma:
-    add rsp, 32
+    add rsp, 16
 %endmacro
 
 %macro LOOP_FILTER_CHROMA 0
