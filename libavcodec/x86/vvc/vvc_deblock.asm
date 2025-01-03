@@ -124,7 +124,6 @@ ALIGN 16
     movhps           m14, [pix0q + strideq]
     pand             m11, m14     ; strong & q
 %else
-    ; movu             m14, m11
     pand             m11, [pix0q ]     ; strong & q
 %endif 
 
@@ -152,7 +151,7 @@ ALIGN 16
 ; m11 strong mask, m8/m9 -tc, tc
 %macro SPATIAL_ACTIVITY 1
 
-    ; if p == 1, then p3, p2 are p1 for spatial calc
+    ; if p == 1, then p3, p2 replace p1 for spatial calc
     pxor              m10, m10
     movd              m11, [max_len_pq]
     punpcklbw         m11, m11, m10
@@ -163,7 +162,7 @@ ALIGN 16
     SHUFFLE_ON_SHIFT2 m11, m13
 
 %if %1 == 8
-    packuswb   m8,     m0, m1
+    packuswb       m8, m0, m1
     movh      [pix0q], m8
     movhps    [pix0q + strideq], m8
 %else
@@ -179,7 +178,6 @@ ALIGN 16
     LOAD_TC %1, m8
 
     ; if max_len_q == 3, compute spatial activity to determine final length
-    pxor               m10, m10
     movd               m11, [max_len_qq]
     punpcklbw          m11, m11, m10
     punpcklwd          m11, m11, m10
@@ -371,14 +369,9 @@ ALIGN 16
     movmskps      no_pq, m11
 
     SHUFFLE_ON_SHIFT m13, m11
-%if %1 == 8
     movu      m14, m13
-%else
-    movu      m14, m13
-%endif
 
     ; load max_len_q
-    pxor            m10, m10
     movd            m11, [max_len_pq]
     punpcklbw       m11, m11, m10
     punpcklwd       m11, m11, m10
@@ -389,18 +382,16 @@ ALIGN 16
 
     SHUFFLE_ON_SHIFT m13, m11
 
-%if %1 == 8
     pand             m13, m14
+%if %1 == 8
     movh             [pix0q + 2 * strideq], m13
     movhps           [pix0q + src3strideq], m13
 %else
-    pand             m13, m14
     movu             [pix0q + 2 * strideq], m13
 %endif
     movmskps         no_pq, m13
 
     ; no_q
-    pxor            m10, m10
     movd            m11, [no_qq]
     punpcklbw       m11, m11, m10
     punpcklwd       m11, m11, m10
@@ -411,14 +402,11 @@ ALIGN 16
     SHUFFLE_ON_SHIFT m13, m11
     movu             m14, m13
 
-    
-    pxor            m10, m10
     movd            m11, [max_len_qq]
     punpcklbw       m11, m11, m10
     punpcklwd       m11, m11, m10
 
     pcmpeqd         m11, m10 ; which are 0
-    pcmpeqd         m12, m12, m12
     pcmpeqd         m11, m10
 
     SHUFFLE_ON_SHIFT   m13, m11
@@ -432,12 +420,10 @@ ALIGN 16
     movmskps         no_qq, m13
 ; end q
 
-
     movmskps         r14, m11
     cmp              r14, 0
     je              .chroma_weak
 
-    pxor            m10, m10
     movd            m11, [max_len_pq]
     punpcklbw       m11, m11, m10
     punpcklwd       m11, m11, m10
@@ -517,7 +503,6 @@ ALIGN 16
     movhps           m14, [pix0q + strideq]
     pand             m11, m14
 %else
-    movu             m14, m11
     pand             m11, [pix0q]
 %endif
     MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
