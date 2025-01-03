@@ -76,15 +76,6 @@ ALIGN 16
 
     cmp            no_pq, 0
     je      .end_p_calcs
-%if %1 == 8
-    movlps          m15, [pix0q + 2 * strideq]
-    movhps          m15, [pix0q + src3strideq]
-    pand            m11, m15 ; which p
-%else
-    pand            m11, [pix0q + 2 * strideq]
-%endif
-; m15
-
 
     ; P2
     paddw          m14, m0, m0       ; 2 * p3
@@ -104,20 +95,14 @@ ALIGN 16
     cmp            no_qq, 0
     je      .end_q_calcs
 
-%if %1 == 8
-    movlps          m11, [pix0q]
-    movhps          m11, [pix0q + strideq]
-%else
-    movu            m11, [pix0q]
-%endif
 
 %if %1 == 8
-    movlps           m14, [pixq + strideq]
-    movhps           m14, [pixq + 2 * strideq]
+    movlps           m14, [pix0q]
+    movhps           m14, [pix0q + strideq]
     pand             m11, m14     ; strong & q
 %else
     ; movu             m14, m11
-    pand             m11, [pixq ]     ; strong & q
+    pand             m11, [pix0q ]     ; strong & q
 %endif 
 
     ; Q0
@@ -343,12 +328,12 @@ ALIGN 16
     CHROMA_FILTER  m3
 
 %if %1 == 8
-    movlps       m10, [pixq + strideq]
-    movhps       m10, [pixq + 2 * strideq]
+    movlps       m10, [pix0q]
+    movhps       m10, [pix0q + strideq]
     pand         m11, m10         ; no_q
 %else
     movu         m10, m11
-    pand         m11, [pixq]         ; no_q
+    pand         m11, [pix0q]         ; no_q
 %endif
 
     ; Q0
@@ -371,6 +356,8 @@ ALIGN 16
     mov spatial_maskq, rsp
     sub rsp, 16
     mov tcptrq, rsp
+
+    SPATIAL_ACTIVITY %1
 
     ; no_p
     pxor            m10, m10
@@ -435,14 +422,13 @@ ALIGN 16
     SHUFFLE_ON_SHIFT   m13, m11
     pand               m13, m14
 %if %1 == 8
-    movh             [pixq + strideq], m13
-    movhps           [pixq + 2 * strideq], m13
+    movh             [pix0q], m13
+    movhps           [pix0q + strideq], m13
 %else
-    movu             [pixq], m13
+    movu             [pix0q], m13
 %endif
     movmskps         no_qq, m13
 ; end q
-    SPATIAL_ACTIVITY %1
 
 
     movmskps         r14, m11
@@ -463,12 +449,6 @@ ALIGN 16
     cmp              r14, 0
     je              .end_strong_chroma
 
-%if %1 == 8
-    movh       [pix0q], m11
-    movhps     [pix0q + strideq], m11
-%else
-    movu       [pix0q], m11
-%endif
     STRONG_CHROMA %1
 
 .end_strong_chroma:
@@ -511,12 +491,12 @@ ALIGN 16
 
     movu             m11, m12
 %if %1 == 8
-    movlps           m14, [pixq + strideq]
-    movhps           m14, [pixq + 2 * strideq]
+    movlps           m14, [pix0q]
+    movhps           m14, [pix0q + strideq]
     pand             m11, m14
 %else
     movu             m14, m11
-    pand             m11, [pixq]
+    pand             m11, [pix0q]
 %endif
     MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
 .end_weak_chroma:
