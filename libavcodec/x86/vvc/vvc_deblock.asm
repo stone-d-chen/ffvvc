@@ -525,7 +525,7 @@ ALIGN 16
 %endmacro
 
 %macro LOOP_FILTER_CHROMA 0
-cglobal vvc_v_loop_filter_chroma_8, 9, 15, 16, 112, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride, spatial_mask, tcptr
+cglobal vvc_v_loop_filter_chroma_8, 9, 15, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift, pix0, q_len, src3stride
     sub            pixq, 4
     lea       src3strideq, [3*strideq]
     mov           pix0q, pixq
@@ -535,7 +535,7 @@ cglobal vvc_v_loop_filter_chroma_8, 9, 15, 16, 112, pix, stride, beta, tc, no_p,
     TRANSPOSE8x8B_STORE PASS8ROWS(pix0q, pixq, strideq, src3strideq)
     RET
 
-cglobal vvc_v_loop_filter_chroma_10, 9, 15, 16, 112, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride, spatial_mask, tcptr
+cglobal vvc_v_loop_filter_chroma_10, 9, 15, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift, pix0, q_len, src3stride
     sub            pixq, 8
     lea       src3strideq, [3*strideq]
     mov           pix0q, pixq
@@ -545,7 +545,7 @@ cglobal vvc_v_loop_filter_chroma_10, 9, 15, 16, 112, pix, stride, beta, tc, no_p
     TRANSPOSE8x8W_STORE PASS8ROWS(pix0q, pixq, strideq, src3strideq), [pw_pixel_max_10]
     RET
 
-cglobal vvc_v_loop_filter_chroma_12, 9, 15, 16, 112, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride, spatial_mask, tcptr
+cglobal vvc_v_loop_filter_chroma_12, 9, 15, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift, pix0, q_len, src3stride
     sub            pixq, 8
     lea       src3strideq, [3*strideq]
     mov           pix0q, pixq
@@ -555,7 +555,7 @@ cglobal vvc_v_loop_filter_chroma_12, 9, 15, 16, 112, pix, stride, beta, tc, no_p
     TRANSPOSE8x8W_STORE PASS8ROWS(pix0q, pixq, strideq, src3strideq), [pw_pixel_max_12]
     RET
 
-cglobal vvc_h_loop_filter_chroma_8, 9, 15, 16, 112, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride, spatial_mask, tcptr
+cglobal vvc_h_loop_filter_chroma_8, 9, 15, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea     src3strideq, [3 * strideq]
     mov           pix0q, pixq
     sub           pix0q, src3strideq
@@ -598,7 +598,7 @@ cglobal vvc_h_loop_filter_chroma_8, 9, 15, 16, 112, pix, stride, beta, tc, no_p,
 
 RET
 
-cglobal vvc_h_loop_filter_chroma_10, 9, 15, 16, 112, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride, spatial_mask, tcptr
+cglobal vvc_h_loop_filter_chroma_10, 9, 15, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
     sub           pix0q, src3strideq
@@ -635,7 +635,7 @@ cglobal vvc_h_loop_filter_chroma_10, 9, 15, 16, 112, pix, stride, beta, tc, no_p
 
 RET
 
-cglobal vvc_h_loop_filter_chroma_12, 9, 15, 16, 112, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride, spatial_mask, tcptr
+cglobal vvc_h_loop_filter_chroma_12, 9, 15, 16, pix, stride, beta, tc, no_p, no_q, max_len_p, max_len_q, shift , pix0, q_len, src3stride
     lea    src3strideq, [3 * strideq]
     mov           pix0q, pixq
     sub           pix0q, src3strideq
