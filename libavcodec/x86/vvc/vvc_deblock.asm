@@ -132,8 +132,14 @@ ALIGN 16
 
     SHUFFLE_ON_SHIFT2 m11, m13
 
-    movu       [rsp + 48], m0
-    movu       [rsp + 64], m1
+%if %1 == 8
+    packuswb   m8,     m0, m1
+    movh      [pix0q], m8
+    movhps    [pix0q + strideq], m8
+%else
+    movu       [pix0q], m0
+    movu       [pix0q + strideq], m1
+%endif
 
     movu              m12, m2
     movu              m13, m2
@@ -291,8 +297,16 @@ ALIGN 16
     movu                      m9, [tcptrq]
     psignw                    m8, m9, [pw_m1];
 
-    movu             m0, [rsp + 48]
-    movu             m1, [rsp + 64]
+%if %1 == 8
+    movq             m0, [pix0q            ] ;
+    movq             m1, [pix0q +   strideq] ;
+    pxor            m12, m12 ; zeros reg
+    punpcklbw        m0, m12
+    punpcklbw        m1, m12
+%else
+    movu             m0, [pix0q]
+    movu             m1, [pix0q + strideq]
+%endif
 
 %endmacro
 
@@ -331,8 +345,6 @@ ALIGN 16
     mov spatial_maskq, rsp
     sub rsp, 16
     mov tcptrq, rsp
-    sub rsp, 16  ; rsp + 64 = spatial activity storage
-    sub rsp, 16  ; rsp + 48 = spatial_activity storage
     sub rsp, 16  ; rsp + 32 = strong mask
     sub rsp, 16  ; rsp + 16 = no_p
     sub rsp, 16  ; rsp      = no_q
@@ -452,7 +464,7 @@ ALIGN 16
     pand             m11, [rsp]
     MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
 .end_weak_chroma:
-    add rsp, 112
+    add rsp, 80
 %endmacro
 
 %macro LOOP_FILTER_CHROMA 0
