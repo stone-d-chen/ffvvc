@@ -95,7 +95,14 @@ ALIGN 16
 
     cmp            no_qq, 0
     je      .end_q_calcs
-    movu             m11, [rsp + 32] ; strong
+
+%if %1 == 8
+    movlps          m11, [pix0q]
+    movhps          m11, [pix0q + strideq]
+%else
+    movu             m11, [pix0q]
+%endif
+
     pand             m11, [rsp ]     ; strong & q
 
     ; Q0
@@ -322,7 +329,12 @@ ALIGN 16
     paddw          m15, m2, m3      ; p1 + p0
     CHROMA_FILTER  m3
 
-    movu         m11, [rsp + 32]    ; strong mask
+%if %1 == 8
+    movlps          m11, [pix0q]
+    movhps          m11, [pix0q + strideq]
+%else
+    movu         m11, [pix0q]
+%endif
     pand         m11, [rsp]         ; no_q
 
     ; Q0
@@ -345,7 +357,6 @@ ALIGN 16
     mov spatial_maskq, rsp
     sub rsp, 16
     mov tcptrq, rsp
-    sub rsp, 16  ; rsp + 32 = strong mask
     sub rsp, 16  ; rsp + 16 = no_p
     sub rsp, 16  ; rsp      = no_q
 
@@ -424,7 +435,12 @@ ALIGN 16
     cmp              r14, 0
     je              .end_strong_chroma
 
-    movu       [rsp + 32], m11
+%if %1 == 8
+    movh       [pix0q], m11
+    movhps     [pix0q + strideq], m11
+%else
+    movu       [pix0q], m11
+%endif
     STRONG_CHROMA %1
 
 .end_strong_chroma:
@@ -439,7 +455,13 @@ ALIGN 16
     cmp              r14, 0
     je              .end_one_side_chroma
 
-    movu     [rsp + 32], m11
+%if %1 == 8
+    movh     [pix0q], m11
+    movhps    [pix0q + strideq], m11
+%else
+    movu     [pix0q], m11
+%endif
+
     ONE_SIDE_CHROMA %1
 .end_one_side_chroma:
 
@@ -464,7 +486,7 @@ ALIGN 16
     pand             m11, [rsp]
     MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
 .end_weak_chroma:
-    add rsp, 80
+    add rsp, 64
 %endmacro
 
 %macro LOOP_FILTER_CHROMA 0
