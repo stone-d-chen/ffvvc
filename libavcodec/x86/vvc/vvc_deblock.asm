@@ -187,8 +187,6 @@ ALIGN 16
     pcmpeqd            m11, [pd_3];
     SHUFFLE_ON_SHIFT2  m11, m13
 
-    movu   [spatial_maskq], m11
-
     movmskps           r14, m11
     cmp                r14, 0
     je         .final_mask
@@ -303,7 +301,12 @@ ALIGN 16
 .final_mask_end:
 
 .prep_clipping_masks:
-    movu         [spatial_maskq], m11
+%if %1 == 8
+    movh         [pixq + strideq], m11
+    movhps       [pixq + 2 * strideq], m11
+%else
+    movu         [pixq], m11
+%endif
     LOAD_TC                   %1, m9
     psignw                    m8, m9, [pw_m1];
 
@@ -355,8 +358,6 @@ ALIGN 16
 
 ; CHROMA_DEBLOCK_BODY(bit_depth)
 %macro CHROMA_DEBLOCK_BODY 1
-    sub  rsp, 16
-    mov spatial_maskq, rsp
 
     SPATIAL_ACTIVITY %1
 
@@ -445,7 +446,13 @@ ALIGN 16
 
     SHUFFLE_ON_SHIFT2 m11, m13
 
-    pand             m11, [spatial_maskq] ; p = 3 & spatial mask
+%if %1 == 8
+    movlps           m14, [pixq + strideq]
+    movhps           m14, [pixq + 2 * strideq]
+    pand             m11, m14 ; p = 3 & spatial mask
+%else
+    pand             m11, [pixq] ; p = 3 & spatial mask
+%endif
     movmskps         r14, m11
     cmp              r14, 0
     je              .end_strong_chroma
@@ -458,7 +465,13 @@ ALIGN 16
     ; invert mask & all strong mask, to get only one-sided mask
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
-    pand     m11, [spatial_maskq]
+%if %1 == 8
+    movlps   m14, [pixq + strideq]
+    movhps   m14, [pixq + 2 * strideq]
+    pand     m11, m14
+%else
+    pand     m11, [pixq]
+%endif
 
     movmskps         r14, m11
     cmp              r14, 0
@@ -468,7 +481,13 @@ ALIGN 16
 .end_one_side_chroma:
 
 .chroma_weak:
-    movu     m11, [spatial_maskq]
+%if %1 == 8
+    movlps   m14, [pixq + strideq]
+    movhps   m14, [pixq + 2 * strideq]
+    movu     m11, m14
+%else
+    movu     m11, [pixq]
+%endif
     pcmpeqd  m12, m12, m12
     pxor     m11, m11, m12
 
@@ -503,7 +522,6 @@ ALIGN 16
 %endif
     MASKED_COPY       m4, m15 ; need to mask the copy since we can have a mix of weak + others
 .end_weak_chroma:
-    add rsp, 16
 %endmacro
 
 %macro LOOP_FILTER_CHROMA 0
