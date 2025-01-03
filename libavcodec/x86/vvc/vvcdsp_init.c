@@ -367,6 +367,7 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
             AVG_INIT(8, avx2);
             MC_LINKS_AVX2(8);
             SAD_INIT();
+            DEBLOCK_INIT(8);
         }
         break;
     case 10:
@@ -382,7 +383,7 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
             MC_LINKS_AVX2(10);
             MC_LINKS_16BPC_AVX2(10);
             SAD_INIT();
-
+            DEBLOCK_INIT(10);
         }
         break;
     case 12:
@@ -398,7 +399,7 @@ void ff_vvc_dsp_init_x86(VVCDSPContext *const c, const int bd)
             MC_LINKS_AVX2(12);
             MC_LINKS_16BPC_AVX2(12);
             SAD_INIT();
-
+            DEBLOCK_INIT(12);
         }
         break;
     default:
