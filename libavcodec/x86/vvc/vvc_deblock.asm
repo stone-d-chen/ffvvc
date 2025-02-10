@@ -53,7 +53,7 @@ SECTION .text
     cmp         shiftd, 1
     jne             %%no_shift
 %if %3
-    movdqa          %1, [%2]
+    movu            %1, [%2]
 %else
     pmovzxbd        %1, [%2]
 %endif
